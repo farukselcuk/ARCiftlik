@@ -27,7 +27,7 @@ export class GameUI {
       });
     }
 
-    this.waterButton.addEventListener("click", (event) => {
+    this.waterButton?.addEventListener("click", (event) => {
       event.stopPropagation();
       this.tool = this.tool === "water" ? "crop" : "water";
       this.syncSelection();
@@ -43,7 +43,7 @@ export class GameUI {
     for (const button of this.cropButtons) {
       button.classList.toggle("is-selected", this.tool === "crop" && button.dataset.crop === this.selectedCrop);
     }
-    this.waterButton.classList.toggle("is-selected", this.tool === "water");
+    this.waterButton?.classList.toggle("is-selected", this.tool === "water");
   }
 
   updateCoins(delta) {

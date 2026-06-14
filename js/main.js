@@ -4,7 +4,6 @@ import { GameUI } from "./ui.js";
 
 const sceneRoot = document.querySelector("#scene-root");
 const startButton = document.querySelector("#start-ar");
-const fallbackButton = document.querySelector("#fallback-mode");
 const cameraFeed = document.querySelector("#camera-feed");
 
 const scene = new THREE.Scene();
@@ -32,6 +31,9 @@ let hitTestSource = null;
 let hitTestSourceRequested = false;
 let fallbackMode = false;
 let lastTouchAt = 0;
+let started = false;
+let cameraStream = null;
+let surfaceStableSince = 0;
 
 setupLights();
 bindEvents();
@@ -49,11 +51,11 @@ function setupLights() {
 }
 
 function bindEvents() {
-  startButton.addEventListener("click", startAR);
-  fallbackButton.addEventListener("click", startFallback);
+  startButton.addEventListener("click", handleStartTap);
   ui.onReset = () => {
     farm.resetPlacement();
     reticle.visible = !fallbackMode;
+    surfaceStableSince = 0;
     document.body.classList.remove("has-farm");
     document.body.classList.toggle("is-scanning", Boolean(xrSession));
     if (fallbackMode) {
@@ -67,21 +69,59 @@ function bindEvents() {
   renderer.domElement.addEventListener("click", onTap);
 }
 
-async function startAR() {
+async function handleStartTap(event) {
+  event.preventDefault();
+  if (started) return;
+
+  started = true;
+  startButton.disabled = true;
+  document.body.classList.add("is-running");
+  ui.showToast("Starting camera");
+
+  try {
+    await startCameraFromUserGesture();
+    await startARSessionOrFallback();
+  } catch (error) {
+    console.warn(error);
+    started = false;
+    startButton.disabled = false;
+    document.body.classList.remove("is-running", "is-camera-active", "is-scanning");
+    ui.showToast("Camera permission needed");
+  }
+}
+
+async function startCameraFromUserGesture() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error("Camera API unavailable");
+  }
+
+  cameraStream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: { ideal: "environment" },
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    },
+    audio: false
+  });
+  cameraFeed.srcObject = cameraStream;
+  await cameraFeed.play();
+  document.body.classList.add("is-camera-active");
+}
+
+async function startARSessionOrFallback() {
   if (!navigator.xr) {
-    ui.showToast("AR hit-test unavailable here");
-    await startFallback();
+    startFallback();
     return;
   }
 
   try {
     const supported = await navigator.xr.isSessionSupported("immersive-ar");
     if (!supported) {
-      ui.showToast("Opening preview mode");
-      await startFallback();
+      startFallback();
       return;
     }
 
+    stopCameraPreview();
     xrSession = await navigator.xr.requestSession("immersive-ar", {
       requiredFeatures: ["hit-test"],
       optionalFeatures: ["local-floor", "dom-overlay"],
@@ -92,42 +132,36 @@ async function startAR() {
       xrSession = null;
       hitTestSource = null;
       hitTestSourceRequested = false;
-      document.body.classList.remove("is-running", "is-scanning");
+      surfaceStableSince = 0;
+      document.body.classList.remove("is-running", "is-scanning", "is-camera-active");
       reticle.visible = false;
     });
 
     await renderer.xr.setSession(xrSession);
     document.body.classList.add("is-running", "is-scanning");
-    ui.showToast("Tap when the grid marker appears");
+    ui.showToast("Finding surface");
   } catch (error) {
     console.warn(error);
-    ui.showToast("AR blocked, using preview");
-    await startFallback();
+    await restartCameraPreviewIfNeeded();
+    startFallback();
   }
 }
 
-async function startFallback() {
+function startFallback() {
   fallbackMode = true;
-  document.body.classList.add("is-fallback", "is-running", "has-farm");
-  document.body.classList.remove("is-scanning");
+  document.body.classList.add("is-running", "is-scanning", "is-camera-active");
   reticle.visible = false;
 
   camera.position.set(0, 0.46, 1.1);
   camera.lookAt(0, 0, -0.12);
-  farm.setPreviewPlacement();
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" } },
-      audio: false
-    });
-    cameraFeed.srcObject = stream;
-    await cameraFeed.play();
-  } catch {
-    document.body.classList.remove("is-fallback");
-  }
-
-  ui.showToast("Preview mode ready");
+  window.setTimeout(() => {
+    if (farm.placed || !fallbackMode) return;
+    farm.setPreviewPlacement();
+    document.body.classList.add("has-farm");
+    document.body.classList.remove("is-scanning");
+    ui.showToast("Farm ready");
+  }, 2000);
 }
 
 function onTap(event) {
@@ -225,8 +259,17 @@ function updateReticle(frame) {
     const pose = hitTestResults[0].getPose(referenceSpace);
     reticle.visible = true;
     reticle.matrix.fromArray(pose.transform.matrix);
+    if (!surfaceStableSince) surfaceStableSince = Date.now();
+    if (Date.now() - surfaceStableSince > 1600) {
+      farm.setPlacedFromMatrix(reticle.matrix);
+      reticle.visible = false;
+      document.body.classList.add("has-farm");
+      document.body.classList.remove("is-scanning");
+      ui.showToast("Farm ready");
+    }
   } else {
     reticle.visible = false;
+    surfaceStableSince = 0;
   }
 }
 
@@ -243,4 +286,23 @@ function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function stopCameraPreview() {
+  if (!cameraStream) return;
+  for (const track of cameraStream.getTracks()) track.stop();
+  cameraStream = null;
+  cameraFeed.srcObject = null;
+  document.body.classList.remove("is-camera-active");
+}
+
+async function restartCameraPreviewIfNeeded() {
+  if (cameraStream) return;
+  cameraStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: "environment" } },
+    audio: false
+  });
+  cameraFeed.srcObject = cameraStream;
+  await cameraFeed.play();
+  document.body.classList.add("is-camera-active");
 }
