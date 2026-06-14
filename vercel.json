@@ -1,15 +1,14 @@
 {
   "version": 2,
-  "builds": [
+  "headers": [
     {
-      "src": "index.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), xr-spatial-tracking=(self)"
+        }
+      ]
     }
   ]
 }
