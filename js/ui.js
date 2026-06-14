@@ -1,74 +1,100 @@
-(function () {
-  const COIN_SAVE_KEY = "ar-farm:coins";
-  const STARTING_COINS = 100;
-  const MIN_COST = Math.min(...Object.values(window.CROP_TYPES).map((crop) => crop.cost));
+import { CROP_TYPES } from "./crops.js";
 
-  const state = {
-    selectedCrop: "wheat",
-    coins: loadCoins()
-  };
+const COIN_SAVE_KEY = "ar-pocket-farm:coins";
+const STARTING_COINS = 100;
+const MIN_PLANTING_COST = Math.min(...Object.values(CROP_TYPES).map((crop) => crop.cost));
 
-  window.ARFarmUI = {
-    get selectedCrop() {
-      return state.selectedCrop;
-    },
-    spend,
-    addCoins,
-    showMessage
-  };
+export class GameUI {
+  constructor() {
+    this.coinEl = document.querySelector("#coin-count");
+    this.toastEl = document.querySelector("#toast");
+    this.cropButtons = [...document.querySelectorAll(".crop-button")];
+    this.waterButton = document.querySelector("#water-tool");
+    this.selectedCrop = "wheat";
+    this.tool = "crop";
+    this.coins = this.loadCoins();
+    this.onReset = null;
 
-  window.selectCrop = function selectCrop(cropId) {
-    if (!window.CROP_TYPES[cropId]) return;
-    state.selectedCrop = cropId;
-    document.querySelectorAll(".crop-button").forEach((button) => {
-      button.classList.toggle("is-selected", button.dataset.crop === cropId);
-    });
-    showMessage(`${window.CROP_TYPES[cropId].name} selected`);
-  };
+    this.updateCoins(0);
+    this.bindControls();
+  }
 
-  document.addEventListener("DOMContentLoaded", () => {
-    updateCoins(0);
-    window.ARFarm.init();
-
-    const marker = document.querySelector("#farm-marker");
-    marker.addEventListener("markerFound", () => showMessage("Farm marker found"));
-    marker.addEventListener("markerLost", () => showMessage("Point camera back at marker"));
-  });
-
-  function spend(amount) {
-    if (state.coins < amount) {
-      if (state.coins < MIN_COST) {
-        state.coins = STARTING_COINS;
-        updateCoins(0);
-        showMessage("Coins reset to 100");
-      }
-      if (state.coins >= amount) {
-        updateCoins(-amount);
-        return true;
-      }
-      return false;
+  bindControls() {
+    for (const button of this.cropButtons) {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        this.selectedCrop = button.dataset.crop;
+        this.tool = "crop";
+        this.syncSelection();
+      });
     }
-    updateCoins(-amount);
+
+    this.waterButton?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.tool = this.tool === "water" ? "crop" : "water";
+      this.syncSelection();
+    });
+
+    document.querySelector("#reset-farm").addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.onReset?.();
+    });
+  }
+
+  syncSelection() {
+    for (const button of this.cropButtons) {
+      button.classList.toggle("is-selected", this.tool === "crop" && button.dataset.crop === this.selectedCrop);
+    }
+    this.waterButton?.classList.toggle("is-selected", this.tool === "water");
+  }
+
+  updateCoins(delta) {
+    this.coins = Math.max(0, this.coins + delta);
+    this.coinEl.textContent = this.coins.toString();
+    localStorage.setItem(COIN_SAVE_KEY, this.coins.toString());
+  }
+
+  refillIfStuck() {
+    if (this.coins >= MIN_PLANTING_COST) return false;
+    this.coins = STARTING_COINS;
+    this.updateCoins(0);
+    this.showToast("Coins reset to 100");
     return true;
   }
 
-  function addCoins(amount) {
-    updateCoins(amount);
+  spendFor(cropId) {
+    const crop = CROP_TYPES[cropId];
+    if (!crop || this.coins < crop.cost) {
+      this.showToast("Need more coins");
+      return false;
+    }
+
+    this.updateCoins(-crop.cost);
+    return true;
   }
 
-  function updateCoins(delta) {
-    state.coins = Math.max(0, state.coins + delta);
-    document.querySelector("#coins").textContent = state.coins.toString();
-    localStorage.setItem(COIN_SAVE_KEY, state.coins.toString());
+  earnFor(crop) {
+    this.updateCoins(crop.reward);
+    this.showCoinFloat(crop.reward);
   }
 
-  function showMessage(text) {
-    document.querySelector("#message").textContent = text;
+  showCoinFloat(amount) {
+    this.showToast(`+${amount} coins`);
   }
 
-  function loadCoins() {
+  showToast(message) {
+    this.toastEl.textContent = message;
+    this.toastEl.classList.remove("is-visible");
+    window.requestAnimationFrame(() => this.toastEl.classList.add("is-visible"));
+  }
+
+  showPlotStatus(message) {
+    this.showToast(message);
+  }
+
+  loadCoins() {
     const saved = Number(localStorage.getItem(COIN_SAVE_KEY));
-    if (!Number.isFinite(saved) || saved < MIN_COST) return STARTING_COINS;
-    return saved;
+    if (!Number.isFinite(saved)) return STARTING_COINS;
+    return saved >= MIN_PLANTING_COST ? saved : STARTING_COINS;
   }
-})();
+}

@@ -2,52 +2,56 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2f6f4e" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen" />
-    <title>AR Farm</title>
+    <title>AR Pocket Farm</title>
     <link rel="stylesheet" href="./style.css" />
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js"
+        }
+      }
+    </script>
   </head>
   <body>
-    <a-scene
-      embedded
-      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix;"
-      renderer="logarithmicDepthBuffer: true;"
-      vr-mode-ui="enabled: false">
+    <video id="camera-feed" playsinline webkit-playsinline muted></video>
+    <main id="app">
+      <div id="scene-root"></div>
 
-      <a-marker preset="hiro" id="farm-marker">
-        <a-entity id="farm-root">
-          <a-box id="plot-0-0" class="plot clickable" data-plot-index="0" position="-0.6 0.05 -0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-0-1" class="plot clickable" data-plot-index="1" position="0 0.05 -0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-0-2" class="plot clickable" data-plot-index="2" position="0.6 0.05 -0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-1-0" class="plot clickable" data-plot-index="3" position="-0.6 0.05 0" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-1-1" class="plot clickable" data-plot-index="4" position="0 0.05 0" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-1-2" class="plot clickable" data-plot-index="5" position="0.6 0.05 0" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-2-0" class="plot clickable" data-plot-index="6" position="-0.6 0.05 0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-2-1" class="plot clickable" data-plot-index="7" position="0 0.05 0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-2-2" class="plot clickable" data-plot-index="8" position="0.6 0.05 0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-        </a-entity>
-      </a-marker>
-
-      <a-entity camera cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
-    </a-scene>
-
-    <div id="ui">
-      <div class="coins">🪙 <span id="coins">100</span> coins</div>
-      <div class="crop-row">
-        <button class="crop-button is-selected" type="button" data-crop="wheat" onclick="selectCrop('wheat')">🌾 Wheat</button>
-        <button class="crop-button" type="button" data-crop="corn" onclick="selectCrop('corn')">🌽 Corn</button>
-        <button class="crop-button" type="button" data-crop="strawberry" onclick="selectCrop('strawberry')">🍓 Berry</button>
-        <button class="crop-button" type="button" data-crop="sunflower" onclick="selectCrop('sunflower')">🌻 Sun</button>
+      <div class="top-bar">
+        <div class="coins" aria-live="polite">
+          <span aria-hidden="true">🪙</span>
+          <span>Coins:</span>
+          <span id="coin-count">100</span>
+        </div>
+        <button id="reset-farm" class="icon-button" type="button" aria-label="Move farm">↻</button>
       </div>
-      <div id="message">Point camera at the Hiro marker</div>
-      <a class="marker-link" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank" rel="noopener">📄 Print Hiro Marker</a>
-    </div>
 
-    <script src="./js/crops.js"></script>
-    <script src="./js/farm.js"></script>
-    <script src="./js/ui.js"></script>
+      <div class="aim-dot" aria-hidden="true"></div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+      <section id="start-panel" class="start-panel">
+        <div class="start-content">
+          <h1>AR Pocket Farm</h1>
+          <p>Tap Start AR, allow camera access, then point your phone at a table or floor.</p>
+          <button id="start-ar" class="primary-button" type="button">Start AR</button>
+        </div>
+      </section>
+
+      <div id="surface-hint" class="surface-hint">Move your phone slowly to find a surface</div>
+
+      <nav class="bottom-bar" aria-label="Crop selection">
+        <button class="crop-button is-selected" type="button" data-crop="wheat">🌾 Wheat</button>
+        <button class="crop-button" type="button" data-crop="corn">🌽 Corn</button>
+        <button class="crop-button" type="button" data-crop="strawberry">🍓 Strawberry</button>
+        <button class="crop-button" type="button" data-crop="sunflower">🌻 Sunflower</button>
+      </nav>
+    </main>
+
+    <script type="module" src="./js/main.js"></script>
   </body>
 </html>
