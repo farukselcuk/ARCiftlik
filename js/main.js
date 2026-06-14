@@ -30,6 +30,9 @@ let xrSession = null;
 let hitTestSource = null;
 let hitTestSourceRequested = false;
 let fallbackMode = false;
+let farmAnchor = null;
+let latestHitTestResult = null;
+let latestReferenceSpace = null;
 let lastTouchAt = 0;
 let started = false;
 let cameraStream = null;
@@ -77,17 +80,28 @@ async function handleStartTap(event) {
   started = true;
   startButton.disabled = true;
   document.body.classList.add("is-running");
-  ui.showToast("Starting camera");
+  ui.showToast("Starting AR");
 
   try {
+    if (navigator.xr) {
+      await startXRSession();
+      return;
+    }
+
     await startCameraFromUserGesture();
-    await startARSessionOrFallback();
+    startFallback();
   } catch (error) {
     console.warn(error);
-    started = false;
-    startButton.disabled = false;
-    document.body.classList.remove("is-running", "is-camera-active", "is-scanning");
-    ui.showToast("Camera permission needed");
+    try {
+      await startCameraFromUserGesture();
+      startFallback();
+    } catch (cameraError) {
+      console.warn(cameraError);
+      started = false;
+      startButton.disabled = false;
+      document.body.classList.remove("is-running", "is-camera-active", "is-scanning");
+      ui.showToast("Camera permission needed");
+    }
   }
 }
 
@@ -109,43 +123,34 @@ async function startCameraFromUserGesture() {
   document.body.classList.add("is-camera-active");
 }
 
-async function startARSessionOrFallback() {
-  if (!navigator.xr) {
-    startFallback();
-    return;
-  }
+async function startXRSession() {
+  fallbackMode = false;
+  stopCameraPreview();
+  xrSession = await navigator.xr.requestSession("immersive-ar", {
+    requiredFeatures: ["hit-test"],
+    optionalFeatures: ["local-floor", "dom-overlay", "anchors"],
+    domOverlay: { root: document.body }
+  });
 
-  try {
-    const supported = await navigator.xr.isSessionSupported("immersive-ar");
-    if (!supported) {
-      startFallback();
-      return;
-    }
+  xrSession.addEventListener("end", () => {
+    xrSession = null;
+    hitTestSource = null;
+    hitTestSourceRequested = false;
+    farmAnchor = null;
+    latestHitTestResult = null;
+    latestReferenceSpace = null;
+    surfaceStableSince = 0;
+    document.body.classList.remove("is-running", "is-scanning", "is-camera-active", "has-farm");
+    reticle.visible = false;
+    farm.resetPlacement();
+    started = false;
+    startButton.disabled = false;
+  });
 
-    stopCameraPreview();
-    xrSession = await navigator.xr.requestSession("immersive-ar", {
-      requiredFeatures: ["hit-test"],
-      optionalFeatures: ["local-floor", "dom-overlay"],
-      domOverlay: { root: document.body }
-    });
-
-    xrSession.addEventListener("end", () => {
-      xrSession = null;
-      hitTestSource = null;
-      hitTestSourceRequested = false;
-      surfaceStableSince = 0;
-      document.body.classList.remove("is-running", "is-scanning", "is-camera-active");
-      reticle.visible = false;
-    });
-
-    await renderer.xr.setSession(xrSession);
-    document.body.classList.add("is-running", "is-scanning");
-    ui.showToast("Finding surface");
-  } catch (error) {
-    console.warn(error);
-    await restartCameraPreviewIfNeeded();
-    startFallback();
-  }
+  await renderer.xr.setSession(xrSession);
+  document.body.classList.add("is-running", "is-scanning");
+  document.body.classList.remove("is-camera-active");
+  ui.showToast("Scan the floor");
 }
 
 function startFallback() {
@@ -172,12 +177,8 @@ function onTap(event) {
   event.preventDefault();
 
   if (!farm.placed) {
-    if (reticle.visible) {
-      farm.setPlacedFromMatrix(reticle.matrix);
-      reticle.visible = false;
-      document.body.classList.add("has-farm");
-      document.body.classList.remove("is-scanning");
-      ui.showToast("Farm placed");
+    if (reticle.visible && latestHitTestResult && latestReferenceSpace) {
+      placeFarmFromHit(latestHitTestResult, latestReferenceSpace);
     }
     return;
   }
@@ -237,6 +238,7 @@ function pointerFromClient(clientX, clientY) {
 function render(time, frame) {
   if (frame && xrSession) {
     updateHitTestSource(frame);
+    updateAnchoredFarm(frame);
     updateReticle(frame);
   }
 
@@ -268,21 +270,52 @@ function updateReticle(frame) {
   const referenceSpace = renderer.xr.getReferenceSpace();
   const hitTestResults = frame.getHitTestResults(hitTestSource);
   if (hitTestResults.length) {
-    const pose = hitTestResults[0].getPose(referenceSpace);
+    latestHitTestResult = hitTestResults[0];
+    latestReferenceSpace = referenceSpace;
+    const pose = latestHitTestResult.getPose(referenceSpace);
     reticle.visible = true;
     reticle.matrix.fromArray(pose.transform.matrix);
     if (!surfaceStableSince) surfaceStableSince = Date.now();
     if (Date.now() - surfaceStableSince > 1600) {
-      farm.setPlacedFromMatrix(reticle.matrix);
-      reticle.visible = false;
-      document.body.classList.add("has-farm");
-      document.body.classList.remove("is-scanning");
-      ui.showToast("Farm ready");
+      placeFarmFromHit(latestHitTestResult, referenceSpace);
     }
   } else {
     reticle.visible = false;
+    latestHitTestResult = null;
+    latestReferenceSpace = null;
     surfaceStableSince = 0;
   }
+}
+
+function placeFarmFromHit(hitTestResult, referenceSpace) {
+  const pose = hitTestResult.getPose(referenceSpace);
+  if (!pose) return;
+
+  const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
+  farm.setPlacedFromMatrix(matrix);
+  reticle.visible = false;
+  document.body.classList.add("has-farm");
+  document.body.classList.remove("is-scanning");
+  ui.showToast("Farm anchored");
+
+  if (typeof hitTestResult.createAnchor === "function") {
+    hitTestResult.createAnchor().then((anchor) => {
+      farmAnchor = anchor;
+    }).catch(() => {
+      farmAnchor = null;
+    });
+  }
+}
+
+function updateAnchoredFarm(frame) {
+  if (!farmAnchor || !frame.trackedAnchors?.has(farmAnchor)) return;
+
+  const referenceSpace = renderer.xr.getReferenceSpace();
+  const pose = frame.getPose(farmAnchor.anchorSpace, referenceSpace);
+  if (!pose) return;
+
+  const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
+  farm.setPlacedFromMatrix(matrix);
 }
 
 function createReticle() {
@@ -306,15 +339,4 @@ function stopCameraPreview() {
   cameraStream = null;
   cameraFeed.srcObject = null;
   document.body.classList.remove("is-camera-active");
-}
-
-async function restartCameraPreviewIfNeeded() {
-  if (cameraStream) return;
-  cameraStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: "environment" } },
-    audio: false
-  });
-  cameraFeed.srcObject = cameraStream;
-  await cameraFeed.play();
-  document.body.classList.add("is-camera-active");
 }
