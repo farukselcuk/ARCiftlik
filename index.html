@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2f6f4e" />
+    <title>AR Pocket Farm</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <video id="camera-feed" playsinline muted></video>
+    <main id="app">
+      <div id="scene-root"></div>
+
+      <div class="top-bar">
+        <div class="coins" aria-live="polite"><span aria-hidden="true">🪙</span><span id="coin-count">100</span></div>
+        <button id="reset-farm" class="icon-button" type="button" aria-label="Move farm">↻</button>
+      </div>
+
+      <div class="aim-dot" aria-hidden="true"></div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+      <section id="start-panel" class="start-panel">
+        <h1>AR Pocket Farm</h1>
+        <p>Start AR, scan a flat surface, then tap to place your farm.</p>
+        <button id="start-ar" class="primary-button" type="button">Start AR</button>
+        <button id="fallback-mode" class="secondary-button" type="button">Preview without AR</button>
+      </section>
+
+      <div id="surface-hint" class="surface-hint">Move your phone slowly to find a surface</div>
+
+      <nav class="bottom-bar" aria-label="Crop selection">
+        <button class="crop-button is-selected" type="button" data-crop="wheat">Wheat</button>
+        <button class="crop-button" type="button" data-crop="corn">Corn</button>
+        <button class="crop-button" type="button" data-crop="strawberry">Strawberry</button>
+        <button class="crop-button" type="button" data-crop="sunflower">Sunflower</button>
+        <button id="water-tool" class="tool-button" type="button" aria-label="Water crops">Water</button>
+      </nav>
+    </main>
+
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>
