@@ -12,10 +12,7 @@
   };
 
   function init() {
-    plots.length = 0;
     particleRoot = document.querySelector("#farm-root");
-    if (!particleRoot) return;
-
     document.querySelectorAll(".plot").forEach((plotEl, index) => {
       const plot = {
         index,
