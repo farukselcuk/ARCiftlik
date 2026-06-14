@@ -1,312 +1,275 @@
-import * as THREE from "three";
-import { CROP_TYPES, createCropMesh, getStage } from "./crops.js";
+(function () {
+  const FARM_SAVE_KEY = "ar-farm:plots";
+  const plots = [];
+  let particleRoot = null;
 
-const GRID_SIZE = 3;
-const PLOT_SIZE = 0.28;
-const PLOT_GAP = 0.035;
-const FARM_SAVE_KEY = "ar-pocket-farm:plots";
+  window.ARFarm = {
+    init,
+    plantOrHarvest,
+    update,
+    save,
+    plots
+  };
 
-const dirtMaterial = new THREE.MeshBasicMaterial({
-  color: 0x7b4d2a,
-  opacity: 0.72,
-  transparent: true,
-  side: THREE.DoubleSide
-});
-const outlineMaterial = new THREE.LineBasicMaterial({ color: 0xf2df99, transparent: true, opacity: 0.72 });
-const progressBackMaterial = new THREE.MeshBasicMaterial({ color: 0x17241f, transparent: true, opacity: 0.86 });
-const progressFillMaterial = new THREE.MeshBasicMaterial({ color: 0x69d47a });
-const particleMaterial = new THREE.MeshStandardMaterial({ color: 0xffdd55, roughness: 0.48 });
+  function init() {
+    particleRoot = document.querySelector("#farm-root");
+    document.querySelectorAll(".plot").forEach((plotEl, index) => {
+      const plot = {
+        index,
+        el: plotEl,
+        cropId: null,
+        plantedAt: 0,
+        cropEl: null,
+        stage: 0
+      };
 
-export class Farm {
-  constructor() {
-    this.group = new THREE.Group();
-    this.group.visible = false;
-    this.plots = [];
-    this.particles = [];
-    this.plotMeshes = [];
+      plotEl.addEventListener("click", function (event) {
+        event.stopPropagation();
+        window.ARFarm.plantOrHarvest(index);
+      });
 
-    this.createBase();
-    this.load();
+      plots[index] = plot;
+    });
+
+    load();
+    window.setInterval(update, 500);
+    update();
   }
 
-  get placed() {
-    return this.group.visible;
-  }
+  function plantOrHarvest(index) {
+    const plot = plots[index];
+    if (!plot) return;
 
-  setPlacedFromMatrix(matrix) {
-    matrix.decompose(this.group.position, this.group.quaternion, this.group.scale);
-    this.group.visible = true;
-  }
+    if (!plot.cropId) {
+      const crop = window.CROP_TYPES[window.ARFarmUI.selectedCrop];
+      if (!crop) return;
 
-  setPreviewPlacement() {
-    this.group.position.set(0, -0.22, -1.08);
-    this.group.rotation.set(-0.7, 0, 0);
-    this.group.scale.setScalar(1.05);
-    this.group.visible = true;
-  }
-
-  resetPlacement() {
-    this.group.visible = false;
-  }
-
-  createBase() {
-    const totalSize = GRID_SIZE * PLOT_SIZE + (GRID_SIZE - 1) * PLOT_GAP;
-    const base = new THREE.Mesh(
-      new THREE.PlaneGeometry(totalSize + 0.16, totalSize + 0.16),
-      new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.18 })
-    );
-    base.rotation.x = -Math.PI / 2;
-    base.position.y = -0.004;
-    base.receiveShadow = true;
-    this.group.add(base);
-
-    for (let row = 0; row < GRID_SIZE; row += 1) {
-      for (let col = 0; col < GRID_SIZE; col += 1) {
-        const index = row * GRID_SIZE + col;
-        const x = col * (PLOT_SIZE + PLOT_GAP) - totalSize / 2 + PLOT_SIZE / 2;
-        const z = row * (PLOT_SIZE + PLOT_GAP) - totalSize / 2 + PLOT_SIZE / 2;
-
-        const plotGroup = new THREE.Group();
-        plotGroup.position.set(x, 0, z);
-
-        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(PLOT_SIZE, PLOT_SIZE), dirtMaterial);
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.position.y = 0.001;
-        mesh.receiveShadow = true;
-        mesh.userData.plotIndex = index;
-        plotGroup.add(mesh);
-
-        const border = new THREE.LineSegments(
-          new THREE.EdgesGeometry(new THREE.PlaneGeometry(PLOT_SIZE, PLOT_SIZE)),
-          outlineMaterial
-        );
-        border.rotation.x = -Math.PI / 2;
-        border.position.y = 0.004;
-        plotGroup.add(border);
-
-        const progress = this.createProgressBar();
-        progress.visible = false;
-        plotGroup.add(progress);
-
-        const plot = {
-          index,
-          cropId: null,
-          plantedAt: 0,
-          boostMs: 0,
-          cropMesh: null,
-          mesh,
-          group: plotGroup,
-          progress,
-          stage: 0
-        };
-
-        this.plots.push(plot);
-        this.plotMeshes.push(mesh);
-        this.group.add(plotGroup);
+      if (!window.ARFarmUI.spend(crop.cost)) {
+        window.ARFarmUI.showMessage("Need more coins");
+        return;
       }
+
+      plot.cropId = crop.id;
+      plot.plantedAt = Date.now();
+      plot.stage = 0;
+      refreshCrop(plot);
+      save();
+      window.ARFarmUI.showMessage(`${crop.name} planted`);
+      return;
     }
+
+    const progress = getProgress(plot);
+    const crop = window.CROP_TYPES[plot.cropId];
+    if (progress < 1) {
+      window.ARFarmUI.showMessage(`${crop.name} ${Math.round(progress * 100)}% grown`);
+      return;
+    }
+
+    window.ARFarmUI.addCoins(crop.reward);
+    window.ARFarmUI.showMessage(`+${crop.reward} coins`);
+    burstParticles(plot.el.getAttribute("position"));
+    clearPlot(plot);
+    save();
   }
 
-  createProgressBar() {
-    const group = new THREE.Group();
-    group.position.set(0, 0.34, -0.02);
+  function update() {
+    const now = Date.now();
+    plots.forEach((plot) => {
+      if (!plot.cropId) return;
 
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.025), progressBackMaterial);
-    group.add(back);
+      const progress = getProgress(plot, now);
+      const stage = window.getCropStage(progress);
+      if (stage !== plot.stage) refreshCrop(plot);
 
-    const fill = new THREE.Mesh(new THREE.PlaneGeometry(0.172, 0.017), progressFillMaterial);
-    fill.position.z = 0.002;
-    fill.position.x = -0.086;
-    fill.scale.x = 0.001;
-    fill.userData.fullWidth = 0.172;
-    group.add(fill);
+      if (plot.cropEl && progress >= 1) {
+        const bob = Math.sin(now * 0.006 + plot.index) * 0.035;
+        const position = plot.cropEl.dataset.basePosition || "0 0.22 0";
+        const parts = position.split(" ").map(Number);
+        plot.cropEl.setAttribute("position", `${parts[0]} ${parts[1] + bob} ${parts[2]}`);
+      }
+    });
+  }
 
-    group.userData.fill = fill;
+  function getProgress(plot, now) {
+    const crop = window.CROP_TYPES[plot.cropId];
+    if (!crop) return 0;
+    return Math.min(1, ((now || Date.now()) - plot.plantedAt) / crop.growTime);
+  }
+
+  function refreshCrop(plot) {
+    const progress = getProgress(plot);
+    const stage = window.getCropStage(progress);
+    if (stage === plot.stage && plot.cropEl) return;
+
+    removeCrop(plot);
+    plot.stage = stage;
+    plot.cropEl = createCropEntity(plot.cropId, stage);
+    plot.el.appendChild(plot.cropEl);
+  }
+
+  function createCropEntity(cropId, stage) {
+    if (stage === 1) return makeEntity("a-sphere", {
+      radius: "0.09",
+      color: "#7A4A26",
+      position: "0 0.17 0"
+    });
+
+    if (stage === 2) return makeEntity("a-cone", {
+      "radius-bottom": "0.1",
+      "radius-top": "0",
+      height: "0.28",
+      color: "#47A85F",
+      position: "0 0.25 0"
+    });
+
+    if (cropId === "corn") return makeCorn();
+    if (cropId === "strawberry") return makeStrawberry();
+    if (cropId === "sunflower") return makeSunflower();
+    return makeWheat();
+  }
+
+  function makeWheat() {
+    const group = makeEntity("a-entity", { position: "0 0.14 0" });
+    group.dataset.basePosition = "0 0.14 0";
+    for (let i = 0; i < 5; i += 1) {
+      const angle = (i / 5) * Math.PI * 2;
+      group.appendChild(makeEntity("a-cylinder", {
+        radius: "0.025",
+        height: "0.38",
+        color: "#F3CE3D",
+        position: `${Math.cos(angle) * 0.09} 0.18 ${Math.sin(angle) * 0.09}`,
+        rotation: `${Math.sin(angle) * 8} 0 ${Math.cos(angle) * 8}`
+      }));
+    }
     return group;
   }
 
-  getPlotMeshes() {
-    return this.plotMeshes;
+  function makeCorn() {
+    const group = makeEntity("a-entity", { position: "0 0.15 0" });
+    group.dataset.basePosition = "0 0.15 0";
+    group.appendChild(makeEntity("a-cylinder", {
+      radius: "0.055",
+      height: "0.38",
+      color: "#31985B",
+      position: "0 0.2 0"
+    }));
+    group.appendChild(makeEntity("a-cylinder", {
+      radius: "0.06",
+      height: "0.24",
+      color: "#FFD84D",
+      position: "0.09 0.26 0",
+      rotation: "0 0 18"
+    }));
+    return group;
   }
 
-  canPlant(index, cropId, coins) {
-    const plot = this.plots[index];
-    const crop = CROP_TYPES[cropId];
-    return Boolean(plot && crop && !plot.cropId && coins >= crop.cost);
+  function makeStrawberry() {
+    const group = makeEntity("a-entity", { position: "0 0.18 0" });
+    group.dataset.basePosition = "0 0.18 0";
+    group.appendChild(makeEntity("a-sphere", {
+      radius: "0.14",
+      color: "#E94042",
+      scale: "1 0.8 0.9",
+      position: "0 0.1 0"
+    }));
+    group.appendChild(makeEntity("a-cone", {
+      "radius-bottom": "0.09",
+      height: "0.09",
+      color: "#47A85F",
+      position: "0 0.22 0",
+      rotation: "180 0 0"
+    }));
+    return group;
   }
 
-  isEmpty(index) {
-    return Boolean(this.plots[index] && !this.plots[index].cropId);
+  function makeSunflower() {
+    const group = makeEntity("a-entity", { position: "0 0.15 0" });
+    group.dataset.basePosition = "0 0.15 0";
+    group.appendChild(makeEntity("a-cylinder", {
+      radius: "0.035",
+      height: "0.55",
+      color: "#2F8F51",
+      position: "0 0.28 0"
+    }));
+    group.appendChild(makeEntity("a-sphere", {
+      radius: "0.16",
+      color: "#FFD33F",
+      scale: "1 1 0.35",
+      position: "0 0.6 0"
+    }));
+    group.appendChild(makeEntity("a-sphere", {
+      radius: "0.08",
+      color: "#6B4220",
+      scale: "1 1 0.45",
+      position: "0 0.6 0.04"
+    }));
+    return group;
   }
 
-  plant(index, cropId) {
-    const plot = this.plots[index];
-    const crop = CROP_TYPES[cropId];
-    if (!plot || !crop || plot.cropId) return null;
+  function burstParticles(position) {
+    if (!particleRoot || !position) return;
 
-    plot.cropId = cropId;
-    plot.plantedAt = Date.now();
-    plot.boostMs = 0;
-    plot.stage = 0;
-    this.refreshCropMesh(plot, 1);
-    this.save();
-    return crop;
-  }
+    for (let i = 0; i < 8; i += 1) {
+      const particle = makeEntity("a-sphere", {
+        radius: "0.035",
+        color: "#FFDD55",
+        position: `${position.x} ${position.y + 0.25} ${position.z}`
+      });
+      particleRoot.appendChild(particle);
 
-  water(index) {
-    const plot = this.plots[index];
-    if (!plot || !plot.cropId || this.getProgress(plot, Date.now()) >= 1) return false;
-
-    const crop = CROP_TYPES[plot.cropId];
-    plot.boostMs = Math.min(plot.boostMs + crop.growTime * 0.1, crop.growTime * 0.35);
-    this.createWaterRipple(plot);
-    this.save();
-    return true;
-  }
-
-  harvest(index) {
-    const plot = this.plots[index];
-    if (!plot || !plot.cropId || this.getProgress(plot, Date.now()) < 1) return null;
-
-    const crop = CROP_TYPES[plot.cropId];
-    this.createHarvestParticles(plot.group.position);
-    this.clearPlot(plot);
-    this.save();
-    return crop;
-  }
-
-  describe(index) {
-    const plot = this.plots[index];
-    if (!plot || !plot.cropId) return "Empty plot";
-
-    const crop = CROP_TYPES[plot.cropId];
-    const progress = this.getProgress(plot, Date.now());
-    if (progress >= 1) return `${crop.name} is ready`;
-    return `${crop.name} ${Math.round(progress * 100)}% grown`;
-  }
-
-  update(now, camera) {
-    for (const plot of this.plots) {
-      if (!plot.cropId) continue;
-      const progress = this.getProgress(plot, now);
-      const stage = getStage(progress);
-      if (stage !== plot.stage) this.refreshCropMesh(plot, stage);
-
-      plot.progress.visible = progress < 1;
-      if (plot.progress.visible) {
-        const fill = plot.progress.userData.fill;
-        fill.scale.x = Math.max(0.001, progress);
-        fill.position.x = -fill.userData.fullWidth * (1 - progress) * 0.5;
-        if (camera) plot.progress.lookAt(camera.position);
-      }
-
-      if (progress >= 1 && plot.cropMesh) {
-        plot.cropMesh.position.y = Math.sin(now * 0.006 + plot.index) * 0.018;
-      }
+      const angle = (i / 8) * Math.PI * 2;
+      particle.setAttribute("animation__move", {
+        property: "position",
+        to: `${position.x + Math.cos(angle) * 0.35} ${position.y + 0.65} ${position.z + Math.sin(angle) * 0.35}`,
+        dur: 650,
+        easing: "easeOutQuad"
+      });
+      particle.setAttribute("animation__fade", {
+        property: "scale",
+        to: "0.01 0.01 0.01",
+        dur: 650,
+        easing: "easeInQuad"
+      });
+      window.setTimeout(() => particle.remove(), 700);
     }
-
-    this.updateParticles(now);
   }
 
-  getProgress(plot, now) {
-    const crop = CROP_TYPES[plot.cropId];
-    if (!crop) return 0;
-    return Math.min(1, (now - plot.plantedAt + plot.boostMs) / crop.growTime);
+  function makeEntity(tagName, attributes) {
+    const entity = document.createElement(tagName);
+    Object.entries(attributes || {}).forEach(([key, value]) => entity.setAttribute(key, value));
+    return entity;
   }
 
-  refreshCropMesh(plot, stage) {
-    if (plot.cropMesh) plot.group.remove(plot.cropMesh);
-    plot.cropMesh = createCropMesh(plot.cropId, stage);
-    plot.cropMesh.userData.plotIndex = plot.index;
-    plot.cropMesh.traverse((child) => {
-      if (child.isMesh) child.castShadow = true;
-    });
-    plot.stage = stage;
-    plot.group.add(plot.cropMesh);
+  function removeCrop(plot) {
+    if (plot.cropEl) plot.cropEl.remove();
+    plot.cropEl = null;
   }
 
-  clearPlot(plot) {
-    if (plot.cropMesh) plot.group.remove(plot.cropMesh);
+  function clearPlot(plot) {
+    removeCrop(plot);
     plot.cropId = null;
     plot.plantedAt = 0;
-    plot.boostMs = 0;
     plot.stage = 0;
-    plot.cropMesh = null;
-    plot.progress.visible = false;
   }
 
-  createWaterRipple(plot) {
-    const waterMaterial = new THREE.MeshBasicMaterial({ color: 0x7ecbff, transparent: true, opacity: 0.7 });
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.055, 0.075, 24), waterMaterial);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.015;
-    ring.userData.createdAt = Date.now();
-    ring.userData.kind = "water";
-    plot.group.add(ring);
-    this.particles.push({ mesh: ring, root: plot.group, start: Date.now(), duration: 520, velocity: new THREE.Vector3() });
-  }
-
-  createHarvestParticles(position) {
-    for (let i = 0; i < 12; i += 1) {
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), particleMaterial);
-      mesh.position.copy(position);
-      mesh.position.y += 0.08;
-      const angle = (i / 12) * Math.PI * 2;
-      const speed = 0.0035 + Math.random() * 0.0025;
-      this.group.add(mesh);
-      this.particles.push({
-        mesh,
-        root: this.group,
-        start: Date.now(),
-        duration: 720,
-        velocity: new THREE.Vector3(Math.cos(angle) * speed, 0.006 + Math.random() * 0.004, Math.sin(angle) * speed)
-      });
-    }
-  }
-
-  updateParticles(now) {
-    this.particles = this.particles.filter((particle) => {
-      const age = now - particle.start;
-      const life = age / particle.duration;
-      if (life >= 1) {
-        particle.root.remove(particle.mesh);
-        return false;
-      }
-
-      if (particle.mesh.userData.kind === "water") {
-        particle.mesh.scale.setScalar(1 + life * 1.8);
-        particle.mesh.material.opacity = 0.7 * (1 - life);
-      } else {
-        particle.mesh.position.add(particle.velocity);
-        particle.velocity.y -= 0.00022;
-        particle.mesh.scale.setScalar(1 - life * 0.45);
-      }
-      return true;
-    });
-  }
-
-  save() {
-    const data = this.plots.map((plot) => ({
+  function save() {
+    localStorage.setItem(FARM_SAVE_KEY, JSON.stringify(plots.map((plot) => ({
       cropId: plot.cropId,
-      plantedAt: plot.plantedAt,
-      boostMs: plot.boostMs
-    }));
-    localStorage.setItem(FARM_SAVE_KEY, JSON.stringify(data));
+      plantedAt: plot.plantedAt
+    }))));
   }
 
-  load() {
+  function load() {
     try {
-      const data = JSON.parse(localStorage.getItem(FARM_SAVE_KEY) || "[]");
-      data.forEach((saved, index) => {
-        if (!saved || !CROP_TYPES[saved.cropId] || !this.plots[index]) return;
-        const plot = this.plots[index];
-        plot.cropId = saved.cropId;
-        plot.plantedAt = Number(saved.plantedAt) || Date.now();
-        plot.boostMs = Number(saved.boostMs) || 0;
-        this.refreshCropMesh(plot, getStage(this.getProgress(plot, Date.now())));
+      const saved = JSON.parse(localStorage.getItem(FARM_SAVE_KEY) || "[]");
+      saved.forEach((item, index) => {
+        if (!item || !window.CROP_TYPES[item.cropId] || !plots[index]) return;
+        plots[index].cropId = item.cropId;
+        plots[index].plantedAt = Number(item.plantedAt) || Date.now();
+        refreshCrop(plots[index]);
       });
     } catch {
       localStorage.removeItem(FARM_SAVE_KEY);
     }
   }
-}
+})();
