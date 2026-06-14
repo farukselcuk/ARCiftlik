@@ -58,6 +58,7 @@ function bindEvents() {
     surfaceStableSince = 0;
     document.body.classList.remove("has-farm");
     document.body.classList.toggle("is-scanning", Boolean(xrSession));
+    ui.refillIfStuck();
     if (fallbackMode) {
       farm.setPreviewPlacement();
       document.body.classList.add("has-farm");
@@ -181,11 +182,7 @@ function onTap(event) {
     return;
   }
 
-  if (event.type === "click" && fallbackMode) {
-    pointerFromEvent(event);
-  } else {
-    pointer.set(0, 0);
-  }
+  setPointerFromTap(event);
 
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObjects(farm.getPlotMeshes(), false);
@@ -216,10 +213,25 @@ function interactWithPlot(plotIndex) {
   ui.showPlotStatus(farm.describe(plotIndex));
 }
 
-function pointerFromEvent(event) {
+function setPointerFromTap(event) {
+  const touch = event.changedTouches?.[0] || event.touches?.[0];
+  if (touch) {
+    pointerFromClient(touch.clientX, touch.clientY);
+    return;
+  }
+
+  if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) {
+    pointerFromClient(event.clientX, event.clientY);
+    return;
+  }
+
+  pointer.set(0, 0);
+}
+
+function pointerFromClient(clientX, clientY) {
   const rect = renderer.domElement.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
 }
 
 function render(time, frame) {

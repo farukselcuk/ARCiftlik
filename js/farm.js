@@ -6,7 +6,12 @@ const PLOT_SIZE = 0.28;
 const PLOT_GAP = 0.035;
 const FARM_SAVE_KEY = "ar-pocket-farm:plots";
 
-const dirtMaterial = new THREE.MeshStandardMaterial({ color: 0x81512d, roughness: 0.96, metalness: 0 });
+const dirtMaterial = new THREE.MeshBasicMaterial({
+  color: 0x7b4d2a,
+  opacity: 0.72,
+  transparent: true,
+  side: THREE.DoubleSide
+});
 const outlineMaterial = new THREE.LineBasicMaterial({ color: 0xf2df99, transparent: true, opacity: 0.72 });
 const progressBackMaterial = new THREE.MeshBasicMaterial({ color: 0x17241f, transparent: true, opacity: 0.86 });
 const progressFillMaterial = new THREE.MeshBasicMaterial({ color: 0x69d47a });

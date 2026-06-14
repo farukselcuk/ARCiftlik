@@ -1,6 +1,8 @@
 import { CROP_TYPES } from "./crops.js";
 
 const COIN_SAVE_KEY = "ar-pocket-farm:coins";
+const STARTING_COINS = 100;
+const MIN_PLANTING_COST = Math.min(...Object.values(CROP_TYPES).map((crop) => crop.cost));
 
 export class GameUI {
   constructor() {
@@ -52,6 +54,14 @@ export class GameUI {
     localStorage.setItem(COIN_SAVE_KEY, this.coins.toString());
   }
 
+  refillIfStuck() {
+    if (this.coins >= MIN_PLANTING_COST) return false;
+    this.coins = STARTING_COINS;
+    this.updateCoins(0);
+    this.showToast("Coins reset to 100");
+    return true;
+  }
+
   spendFor(cropId) {
     const crop = CROP_TYPES[cropId];
     if (!crop || this.coins < crop.cost) {
@@ -84,6 +94,7 @@ export class GameUI {
 
   loadCoins() {
     const saved = Number(localStorage.getItem(COIN_SAVE_KEY));
-    return Number.isFinite(saved) && saved >= 0 ? saved : 100;
+    if (!Number.isFinite(saved)) return STARTING_COINS;
+    return saved >= MIN_PLANTING_COST ? saved : STARTING_COINS;
   }
 }
