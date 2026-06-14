@@ -28,12 +28,41 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     updateCoins(0);
+    const startButton = document.querySelector("#start-ar");
+    startButton.addEventListener("click", startAR);
+
+    if (window.location.protocol === "file:") {
+      showMessage("Do not open with file://. Use Vercel HTTPS or localhost.");
+    }
+  });
+
+  function startAR() {
+    if (window.location.protocol === "file:") {
+      showMessage("file:// blocks AR camera. Open the Vercel URL or http://localhost:8000");
+      return;
+    }
+
+    if (!window.AFRAME) {
+      showMessage("A-Frame did not load. Check internet connection.");
+      return;
+    }
+
+    if (document.querySelector("a-scene")) return;
+
+    document.body.classList.add("ar-started");
+    showMessage("Starting camera...");
+
+    const template = document.querySelector("#scene-template");
+    const root = document.querySelector("#ar-root");
+    root.appendChild(template.content.cloneNode(true));
+
     window.ARFarm.init();
 
     const marker = document.querySelector("#farm-marker");
     marker.addEventListener("markerFound", () => showMessage("Farm marker found"));
     marker.addEventListener("markerLost", () => showMessage("Point camera back at marker"));
-  });
+    showMessage("Allow camera, then point at Hiro marker");
+  }
 
   function spend(amount) {
     if (state.coins < amount) {

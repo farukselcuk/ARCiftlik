@@ -15,6 +15,60 @@ a-scene {
   z-index: 0;
 }
 
+#start-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: linear-gradient(180deg, #12231b, #050807);
+  color: #fff;
+  box-sizing: border-box;
+}
+
+.start-card {
+  width: min(420px, 100%);
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.start-card h1 {
+  margin: 0 0 8px;
+  font-size: 30px;
+}
+
+.start-card p {
+  margin: 0 0 16px;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.4;
+}
+
+#start-ar {
+  width: 100%;
+  min-height: 54px;
+  border: 0;
+  border-radius: 8px;
+  background: #ffd84d;
+  color: #171100;
+  font: inherit;
+  font-weight: 900;
+}
+
+.start-card a {
+  display: inline-block;
+  margin-top: 14px;
+  color: #fff;
+  font-weight: 800;
+}
+
+body.ar-started #start-screen {
+  display: none;
+}
+
 #ui {
   position: fixed;
   left: 0;
@@ -25,6 +79,13 @@ a-scene {
   background: rgba(0, 0, 0, 0.72);
   color: #fff;
   box-sizing: border-box;
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.ar-started #ui {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .coins {

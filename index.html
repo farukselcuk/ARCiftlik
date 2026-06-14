@@ -11,28 +11,41 @@
     <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
   </head>
   <body>
-    <a-scene
-      embedded
-      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix;"
-      renderer="logarithmicDepthBuffer: true;"
-      vr-mode-ui="enabled: false">
+    <div id="ar-root"></div>
 
-      <a-marker preset="hiro" id="farm-marker">
-        <a-entity id="farm-root">
-          <a-box id="plot-0-0" class="plot clickable" data-plot-index="0" position="-0.6 0.05 -0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-0-1" class="plot clickable" data-plot-index="1" position="0 0.05 -0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-0-2" class="plot clickable" data-plot-index="2" position="0.6 0.05 -0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-1-0" class="plot clickable" data-plot-index="3" position="-0.6 0.05 0" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-1-1" class="plot clickable" data-plot-index="4" position="0 0.05 0" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-1-2" class="plot clickable" data-plot-index="5" position="0.6 0.05 0" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-2-0" class="plot clickable" data-plot-index="6" position="-0.6 0.05 0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-2-1" class="plot clickable" data-plot-index="7" position="0 0.05 0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-          <a-box id="plot-2-2" class="plot clickable" data-plot-index="8" position="0.6 0.05 0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
-        </a-entity>
-      </a-marker>
+    <section id="start-screen">
+      <div class="start-card">
+        <h1>AR Farm</h1>
+        <p>Open this page from Vercel or localhost, then tap Start Camera and point at a Hiro marker.</p>
+        <button id="start-ar" type="button">Start Camera</button>
+        <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank" rel="noopener">Print Hiro Marker</a>
+      </div>
+    </section>
 
-      <a-entity camera cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
-    </a-scene>
+    <template id="scene-template">
+      <a-scene
+        embedded
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix;"
+        renderer="logarithmicDepthBuffer: true;"
+        vr-mode-ui="enabled: false">
+
+        <a-marker preset="hiro" id="farm-marker">
+          <a-entity id="farm-root">
+            <a-box id="plot-0-0" class="plot clickable" data-plot-index="0" position="-0.6 0.05 -0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
+            <a-box id="plot-0-1" class="plot clickable" data-plot-index="1" position="0 0.05 -0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
+            <a-box id="plot-0-2" class="plot clickable" data-plot-index="2" position="0.6 0.05 -0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
+            <a-box id="plot-1-0" class="plot clickable" data-plot-index="3" position="-0.6 0.05 0" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
+            <a-box id="plot-1-1" class="plot clickable" data-plot-index="4" position="0 0.05 0" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
+            <a-box id="plot-1-2" class="plot clickable" data-plot-index="5" position="0.6 0.05 0" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
+            <a-box id="plot-2-0" class="plot clickable" data-plot-index="6" position="-0.6 0.05 0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
+            <a-box id="plot-2-1" class="plot clickable" data-plot-index="7" position="0 0.05 0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
+            <a-box id="plot-2-2" class="plot clickable" data-plot-index="8" position="0.6 0.05 0.6" width="0.5" height="0.1" depth="0.5" color="#8B4513"></a-box>
+          </a-entity>
+        </a-marker>
+
+        <a-entity camera cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
+      </a-scene>
+    </template>
 
     <div id="ui">
       <div class="coins">🪙 <span id="coins">100</span> coins</div>
@@ -42,7 +55,7 @@
         <button class="crop-button" type="button" data-crop="strawberry" onclick="selectCrop('strawberry')">🍓 Berry</button>
         <button class="crop-button" type="button" data-crop="sunflower" onclick="selectCrop('sunflower')">🌻 Sun</button>
       </div>
-      <div id="message">Point camera at the Hiro marker</div>
+      <div id="message">Tap Start Camera first</div>
       <a class="marker-link" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank" rel="noopener">📄 Print Hiro Marker</a>
     </div>
 
