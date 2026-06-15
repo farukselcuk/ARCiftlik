@@ -46,6 +46,20 @@ body.is-camera-active #camera-feed {
   opacity: 1;
 }
 
+/* When camera is unavailable (iOS permission denied, desktop, etc.) */
+body.no-camera {
+  background: radial-gradient(ellipse at 50% 65%, #1e4a36 0%, #0d1f18 55%, #060e0a 100%);
+}
+
+body.no-camera #camera-feed {
+  display: none;
+}
+
+/* iOS Safari needs explicit touch-action on canvas */
+#scene-root canvas {
+  touch-action: none;
+}
+
 #scene-root {
   position: fixed;
   inset: 0;
