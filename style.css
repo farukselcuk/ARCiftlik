@@ -48,7 +48,24 @@ body.is-camera-active #camera-feed {
 
 /* When camera is unavailable (iOS permission denied, desktop, etc.) */
 body.no-camera {
-  background: radial-gradient(ellipse at 50% 65%, #1e4a36 0%, #0d1f18 55%, #060e0a 100%);
+  background: radial-gradient(ellipse at 50% 65%, #2a5f45 0%, #10261d 55%, #08120e 100%);
+  transition: background 4000ms ease-in-out;
+}
+
+body.no-camera.sunset-time {
+  background: radial-gradient(ellipse at 50% 65%, #663333 0%, #291414 55%, #0f0707 100%);
+}
+
+body.no-camera.night-time {
+  background: radial-gradient(ellipse at 50% 65%, #0d121f 0%, #05070d 55%, #020305 100%);
+}
+
+body.no-camera.sunrise-time {
+  background: radial-gradient(ellipse at 50% 65%, #5a452d 0%, #241a10 55%, #0c0805 100%);
+}
+
+body.no-camera.day-time {
+  background: radial-gradient(ellipse at 50% 65%, #2a5f45 0%, #10261d 55%, #08120e 100%);
 }
 
 body.no-camera #camera-feed {
@@ -433,4 +450,179 @@ body.is-running .bottom-bar {
   font-size: 13px;
   font-weight: 800;
   color: var(--leaf);
+}
+
+/* Divider inside Market */
+.market-divider {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 20px 0;
+}
+
+/* Sell List Layout */
+.market-sell-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.sell-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.sell-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sell-name {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.sell-count {
+  font-size: 12px;
+  color: rgba(247, 251, 244, 0.65);
+}
+
+.sell-button {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 212, 90, 0.5);
+  background: var(--accent);
+  color: #231b04;
+  cursor: pointer;
+  width: auto;
+}
+
+.sell-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(247, 251, 244, 0.32);
+  border-color: transparent;
+}
+
+/* Orders Modal */
+.orders-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+}
+
+.orders-modal.is-visible {
+  display: grid;
+}
+
+.orders-content {
+  position: relative;
+  width: min(450px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(18, 28, 24, 0.92);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+}
+
+.orders-content h2 {
+  margin: 0 0 20px;
+  font-size: 24px;
+  text-align: center;
+  color: var(--accent);
+}
+
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.order-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.order-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.order-villager {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.order-reward {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(255, 212, 90, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.order-reqs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.order-req {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.order-req.is-met {
+  border-color: rgba(78, 179, 106, 0.45);
+  background: rgba(78, 179, 106, 0.12);
+  color: #69d47a;
+}
+
+.order-req.is-missing {
+  border-color: rgba(233, 64, 66, 0.35);
+  background: rgba(233, 64, 66, 0.08);
+  color: #ff6b6b;
+}
+
+.order-complete-btn {
+  margin-top: 4px;
+  min-height: 38px;
+  border-radius: 6px;
 }

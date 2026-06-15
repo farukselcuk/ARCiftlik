@@ -1,12 +1,12 @@
 import * as THREE from "three";
 import { CROP_TYPES, createCropMesh, getStage } from "./crops.js";
 
-const GRID_SIZE = 3;
+const GRID_SIZE = 4;
 const PLOT_SIZE = 0.28;
 const PLOT_GAP = 0.035;
 const FARM_SAVE_KEY = "ar-pocket-farm:plots";
 const UNLOCKED_PLOTS_SAVE_KEY = "ar-pocket-farm:unlocked-plots";
-const DEFAULT_UNLOCKED_PLOTS = 3;
+const DEFAULT_UNLOCKED_PLOTS = 4;
 
 const dirtMaterial = new THREE.MeshBasicMaterial({
   color: 0x7b4d2a,
@@ -362,7 +362,7 @@ export class Farm {
 
   loadUnlockedPlotsCount() {
     const saved = Number(localStorage.getItem(UNLOCKED_PLOTS_SAVE_KEY));
-    return Number.isInteger(saved) && saved >= 1 && saved <= 9 ? saved : DEFAULT_UNLOCKED_PLOTS;
+    return Number.isInteger(saved) && saved >= 1 && saved <= 16 ? saved : DEFAULT_UNLOCKED_PLOTS;
   }
 
   saveUnlockedPlotsCount() {
@@ -374,7 +374,7 @@ export class Farm {
   }
 
   unlockPlot() {
-    if (this.unlockedPlotsCount >= 9) return false;
+    if (this.unlockedPlotsCount >= 16) return false;
     const plot = this.plots[this.unlockedPlotsCount];
     if (plot && plot.lockMesh) {
       plot.group.remove(plot.lockMesh);
@@ -397,7 +397,7 @@ export class Farm {
     this.unlockedPlotsCount = DEFAULT_UNLOCKED_PLOTS;
     this.saveUnlockedPlotsCount();
 
-    for (let i = DEFAULT_UNLOCKED_PLOTS; i < 9; i += 1) {
+    for (let i = DEFAULT_UNLOCKED_PLOTS; i < 16; i += 1) {
       const plot = this.plots[i];
       if (plot) {
         plot.lockMesh = this.createLockMesh();
