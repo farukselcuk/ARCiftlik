@@ -5,6 +5,8 @@ const GRID_SIZE = 3;
 const PLOT_SIZE = 0.28;
 const PLOT_GAP = 0.035;
 const FARM_SAVE_KEY = "ar-pocket-farm:plots";
+const UNLOCKED_PLOTS_SAVE_KEY = "ar-pocket-farm:unlocked-plots";
+const DEFAULT_UNLOCKED_PLOTS = 3;
 
 const dirtMaterial = new THREE.MeshBasicMaterial({
   color: 0x7b4d2a,
@@ -24,6 +26,8 @@ export class Farm {
     this.plots = [];
     this.particles = [];
     this.plotMeshes = [];
+
+    this.unlockedPlotsCount = this.loadUnlockedPlotsCount();
 
     this.createBase();
     this.load();
@@ -88,6 +92,12 @@ export class Farm {
         progress.visible = false;
         plotGroup.add(progress);
 
+        let lockMesh = null;
+        if (index >= this.unlockedPlotsCount) {
+          lockMesh = this.createLockMesh();
+          plotGroup.add(lockMesh);
+        }
+
         const plot = {
           index,
           cropId: null,
@@ -97,7 +107,8 @@ export class Farm {
           mesh,
           group: plotGroup,
           progress,
-          stage: 0
+          stage: 0,
+          lockMesh: lockMesh
         };
 
         this.plots.push(plot);
@@ -125,21 +136,45 @@ export class Farm {
     return group;
   }
 
+  createLockMesh() {
+    const group = new THREE.Group();
+    group.name = "lock-mesh";
+    group.position.y = 0.08;
+
+    // Padlock body (golden/brass yellow)
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.35, metalness: 0.8 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.024), bodyMat);
+    body.castShadow = true;
+    group.add(body);
+
+    // Padlock shackle (silver/metallic)
+    const shackleMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.25, metalness: 0.9 });
+    const shackle = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.007, 8, 16, Math.PI), shackleMat);
+    shackle.position.y = 0.025;
+    shackle.castShadow = true;
+    group.add(shackle);
+
+    return group;
+  }
+
   getPlotMeshes() {
     return this.plotMeshes;
   }
 
   canPlant(index, cropId, coins) {
+    if (this.isLocked(index)) return false;
     const plot = this.plots[index];
     const crop = CROP_TYPES[cropId];
     return Boolean(plot && crop && !plot.cropId && coins >= crop.cost);
   }
 
   isEmpty(index) {
+    if (this.isLocked(index)) return false;
     return Boolean(this.plots[index] && !this.plots[index].cropId);
   }
 
   plant(index, cropId) {
+    if (this.isLocked(index)) return null;
     const plot = this.plots[index];
     const crop = CROP_TYPES[cropId];
     if (!plot || !crop || plot.cropId) return null;
@@ -154,6 +189,7 @@ export class Farm {
   }
 
   water(index) {
+    if (this.isLocked(index)) return false;
     const plot = this.plots[index];
     if (!plot || !plot.cropId || this.getProgress(plot, Date.now()) >= 1) return false;
 
@@ -165,6 +201,7 @@ export class Farm {
   }
 
   harvest(index) {
+    if (this.isLocked(index)) return null;
     const plot = this.plots[index];
     if (!plot || !plot.cropId || this.getProgress(plot, Date.now()) < 1) return null;
 
@@ -176,12 +213,14 @@ export class Farm {
   }
 
   isReadyToHarvest(index) {
+    if (this.isLocked(index)) return false;
     const plot = this.plots[index];
     if (!plot || !plot.cropId) return false;
     return this.getProgress(plot, Date.now()) >= 1;
   }
 
   describe(index) {
+    if (this.isLocked(index)) return "Locked plot";
     const plot = this.plots[index];
     if (!plot || !plot.cropId) return "Empty plot";
 
@@ -193,6 +232,11 @@ export class Farm {
 
   update(now, camera) {
     for (const plot of this.plots) {
+      if (plot.lockMesh) {
+        plot.lockMesh.position.y = 0.08 + Math.sin(now * 0.003 + plot.index) * 0.012;
+        plot.lockMesh.rotation.y = now * 0.001 + plot.index;
+        continue;
+      }
       if (!plot.cropId) continue;
       const progress = this.getProgress(plot, now);
       const stage = getStage(progress);
@@ -313,6 +357,52 @@ export class Farm {
       });
     } catch {
       localStorage.removeItem(FARM_SAVE_KEY);
+    }
+  }
+
+  loadUnlockedPlotsCount() {
+    const saved = Number(localStorage.getItem(UNLOCKED_PLOTS_SAVE_KEY));
+    return Number.isInteger(saved) && saved >= 1 && saved <= 9 ? saved : DEFAULT_UNLOCKED_PLOTS;
+  }
+
+  saveUnlockedPlotsCount() {
+    localStorage.setItem(UNLOCKED_PLOTS_SAVE_KEY, this.unlockedPlotsCount.toString());
+  }
+
+  isLocked(index) {
+    return index >= this.unlockedPlotsCount;
+  }
+
+  unlockPlot() {
+    if (this.unlockedPlotsCount >= 9) return false;
+    const plot = this.plots[this.unlockedPlotsCount];
+    if (plot && plot.lockMesh) {
+      plot.group.remove(plot.lockMesh);
+      plot.lockMesh = null;
+    }
+    this.unlockedPlotsCount += 1;
+    this.saveUnlockedPlotsCount();
+    return true;
+  }
+
+  resetUnlockedPlots() {
+    for (const plot of this.plots) {
+      if (plot.lockMesh) {
+        plot.group.remove(plot.lockMesh);
+        plot.lockMesh = null;
+      }
+      this.clearPlot(plot);
+    }
+    
+    this.unlockedPlotsCount = DEFAULT_UNLOCKED_PLOTS;
+    this.saveUnlockedPlotsCount();
+
+    for (let i = DEFAULT_UNLOCKED_PLOTS; i < 9; i += 1) {
+      const plot = this.plots[i];
+      if (plot) {
+        plot.lockMesh = this.createLockMesh();
+        plot.group.add(plot.lockMesh);
+      }
     }
   }
 }

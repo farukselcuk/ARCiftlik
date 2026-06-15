@@ -30,6 +30,7 @@
           <span id="coin-count">100</span>
         </div>
         <div class="control-buttons">
+          <button id="open-market" class="icon-button" type="button" aria-label="Open market">🛒</button>
           <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in">+</button>
           <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">-</button>
           <button id="reset-farm" class="icon-button" type="button" aria-label="Move farm">↻</button>
@@ -47,13 +48,43 @@
         </div>
       </section>
 
+      <!-- Market Modal -->
+      <section id="market-panel" class="market-modal">
+        <div class="market-content">
+          <button id="close-market" class="close-button" type="button" aria-label="Close market">✕</button>
+          <h2>Farm Market</h2>
+          <div class="market-items">
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Expand Farm Plot</h3>
+                <p>Unlock a new plot on your 3x3 grid to plant more crops.</p>
+                <div class="item-stats" id="plot-expansion-stats">Unlocked: 3/9</div>
+              </div>
+              <button id="buy-plot" class="primary-button" type="button">Buy for 100 🪙</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div id="surface-hint" class="surface-hint">Move your phone slowly to find a surface</div>
 
       <nav class="bottom-bar" aria-label="Crop selection">
-        <button class="crop-button is-selected" type="button" data-crop="wheat">🌾 Wheat</button>
-        <button class="crop-button" type="button" data-crop="corn">🌽 Corn</button>
-        <button class="crop-button" type="button" data-crop="strawberry">🍓 Strawberry</button>
-        <button class="crop-button" type="button" data-crop="sunflower">🌻 Sunflower</button>
+        <button class="crop-button is-selected" type="button" data-crop="wheat">
+          <span class="crop-title">🌾 Wheat</span>
+          <span class="crop-stats">Buy: 10 | Profit: +15<br>Grow: 60s</span>
+        </button>
+        <button class="crop-button" type="button" data-crop="corn">
+          <span class="crop-title">🌽 Corn</span>
+          <span class="crop-stats">Buy: 15 | Profit: +20<br>Grow: 120s</span>
+        </button>
+        <button class="crop-button" type="button" data-crop="strawberry">
+          <span class="crop-title">🍓 Strawberry</span>
+          <span class="crop-stats">Buy: 20 | Profit: +30<br>Grow: 90s</span>
+        </button>
+        <button class="crop-button" type="button" data-crop="sunflower">
+          <span class="crop-title">🌻 Sunflower</span>
+          <span class="crop-stats">Buy: 25 | Profit: +45<br>Grow: 180s</span>
+        </button>
       </nav>
     </main>
 

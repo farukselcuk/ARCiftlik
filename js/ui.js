@@ -57,6 +57,7 @@ export class GameUI {
     this.coins = Math.max(0, this.coins + delta);
     this.coinEl.textContent = this.coins.toString();
     localStorage.setItem(COIN_SAVE_KEY, this.coins.toString());
+    this.onCoinsChange?.(this.coins);
   }
 
   refillIfStuck() {

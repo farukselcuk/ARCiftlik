@@ -84,6 +84,23 @@ function setupLights() {
   scene.add(gridHelper);
 }
 
+let zoomInterval = null;
+
+function startZooming(factor) {
+  if (zoomInterval) clearInterval(zoomInterval);
+  zoomCamera(factor);
+  zoomInterval = setInterval(() => {
+    zoomCamera(factor);
+  }, 80);
+}
+
+function stopZooming() {
+  if (zoomInterval) {
+    clearInterval(zoomInterval);
+    zoomInterval = null;
+  }
+}
+
 function bindEvents() {
   startButton.addEventListener("click", handleStartTap);
   ui.onReset = () => {
@@ -97,6 +114,10 @@ function bindEvents() {
     queuedPlots.clear();
     character.reset();
 
+    // Reset unlocked plots
+    farm.resetUnlockedPlots();
+    updateMarketUI();
+
     farm.setPreviewPlacement();
     document.body.classList.add("has-farm");
     if (orbitControls) {
@@ -106,18 +127,92 @@ function bindEvents() {
     }
   };
 
+  ui.onCoinsChange = () => {
+    updateMarketUI();
+  };
+
   window.addEventListener("resize", onResize);
   renderer.domElement.addEventListener("pointerdown", onPointerDown);
   renderer.domElement.addEventListener("pointerup", onPointerUp);
 
-  document.querySelector("#zoom-in").addEventListener("click", (e) => {
+  // Press-and-hold zoom functionality
+  const zoomInBtn = document.querySelector("#zoom-in");
+  const zoomOutBtn = document.querySelector("#zoom-out");
+
+  zoomInBtn.addEventListener("pointerdown", (e) => { e.stopPropagation(); startZooming(0.95); });
+  zoomInBtn.addEventListener("pointerup", (e) => { e.stopPropagation(); stopZooming(); });
+  zoomInBtn.addEventListener("pointerleave", (e) => { e.stopPropagation(); stopZooming(); });
+  zoomInBtn.addEventListener("pointercancel", (e) => { e.stopPropagation(); stopZooming(); });
+  zoomInBtn.addEventListener("click", (e) => e.preventDefault());
+
+  zoomOutBtn.addEventListener("pointerdown", (e) => { e.stopPropagation(); startZooming(1.05); });
+  zoomOutBtn.addEventListener("pointerup", (e) => { e.stopPropagation(); stopZooming(); });
+  zoomOutBtn.addEventListener("pointerleave", (e) => { e.stopPropagation(); stopZooming(); });
+  zoomOutBtn.addEventListener("pointercancel", (e) => { e.stopPropagation(); stopZooming(); });
+  zoomOutBtn.addEventListener("click", (e) => e.preventDefault());
+
+  // Market Modal bindings
+  const marketPanel = document.querySelector("#market-panel");
+  const openMarketBtn = document.querySelector("#open-market");
+  const closeMarketBtn = document.querySelector("#close-market");
+  const buyPlotBtn = document.querySelector("#buy-plot");
+
+  openMarketBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    zoomCamera(0.85);
+    updateMarketUI();
+    marketPanel.classList.add("is-visible");
   });
-  document.querySelector("#zoom-out").addEventListener("click", (e) => {
+
+  closeMarketBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    zoomCamera(1.15);
+    marketPanel.classList.remove("is-visible");
   });
+
+  marketPanel.addEventListener("click", (e) => {
+    if (e.target === marketPanel) {
+      marketPanel.classList.remove("is-visible");
+    }
+  });
+
+  buyPlotBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const count = farm.unlockedPlotsCount;
+    if (count >= 9) return;
+
+    const price = 50 * (count - 1);
+    if (ui.coins >= price) {
+      ui.updateCoins(-price);
+      const success = farm.unlockPlot();
+      if (success) {
+        ui.showToast("New plot expanded!");
+        updateMarketUI();
+      }
+    } else {
+      ui.showToast("Need more coins!");
+    }
+  });
+
+  updateMarketUI();
+}
+
+function updateMarketUI() {
+  const modal = document.querySelector("#market-panel");
+  const buyBtn = document.querySelector("#buy-plot");
+  const statsEl = document.querySelector("#plot-expansion-stats");
+
+  if (!modal || !buyBtn || !statsEl) return;
+
+  const count = farm.unlockedPlotsCount;
+  statsEl.textContent = `Unlocked: ${count}/9`;
+
+  if (count >= 9) {
+    buyBtn.textContent = "Max Limit Reached";
+    buyBtn.disabled = true;
+  } else {
+    const price = 50 * (count - 1);
+    buyBtn.textContent = `Buy for ${price} 🪙`;
+    buyBtn.disabled = ui.coins < price;
+  }
 }
 
 function zoomCamera(factor) {
@@ -255,6 +350,13 @@ function handleTap(event) {
 }
 
 function interactWithPlot(plotIndex) {
+  if (farm.isLocked(plotIndex)) {
+    updateMarketUI();
+    document.querySelector("#market-panel").classList.add("is-visible");
+    ui.showToast("Plot is locked! Open market to expand.");
+    return;
+  }
+
   if (farm.isReadyToHarvest(plotIndex)) {
     if (queuedPlots.has(plotIndex)) {
       ui.showToast("Already in harvest queue!");
