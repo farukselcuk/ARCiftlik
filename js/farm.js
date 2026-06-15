@@ -39,9 +39,9 @@ export class Farm {
   }
 
   setPreviewPlacement() {
-    this.group.position.set(0, -0.22, -1.08);
-    this.group.rotation.set(-0.7, 0, 0);
-    this.group.scale.setScalar(1.05);
+    this.group.position.set(0, 0, 0);
+    this.group.rotation.set(0, 0, 0);
+    this.group.scale.setScalar(1);
     this.group.visible = true;
   }
 

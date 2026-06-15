@@ -14,6 +14,11 @@ export class GameUI {
     this.tool = "crop";
     this.coins = this.loadCoins();
     this.onReset = null;
+    this._toastTimer = 0;
+
+    this.toastEl.addEventListener("animationend", () => {
+      this.toastEl.classList.remove("is-visible");
+    });
 
     this.updateCoins(0);
     this.bindControls();
@@ -83,9 +88,15 @@ export class GameUI {
   }
 
   showToast(message) {
-    this.toastEl.textContent = message;
     this.toastEl.classList.remove("is-visible");
-    window.requestAnimationFrame(() => this.toastEl.classList.add("is-visible"));
+    this.toastEl.textContent = message;
+    /* Force reflow so the browser registers the class removal before re-adding */
+    void this.toastEl.offsetWidth;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.toastEl.classList.add("is-visible");
+      });
+    });
   }
 
   showPlotStatus(message) {

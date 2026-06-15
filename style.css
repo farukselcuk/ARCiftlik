@@ -71,7 +71,7 @@ body.is-camera-active #camera-feed {
 }
 
 .top-bar {
-  top: calc(12px + env(safe-area-inset-top));
+  top: calc(12px + env(safe-area-inset-top, 0px));
   left: 12px;
   right: 12px;
   display: flex;
@@ -195,7 +195,7 @@ body.is-camera-active #camera-feed {
 
 .surface-hint {
   left: 50%;
-  top: calc(72px + env(safe-area-inset-top));
+  top: calc(72px + env(safe-area-inset-top, 0px));
   max-width: min(380px, calc(100vw - 32px));
   padding: 10px 14px;
   border-radius: 8px;
@@ -233,7 +233,7 @@ body.is-scanning .surface-hint {
 .bottom-bar {
   left: 8px;
   right: 8px;
-  bottom: calc(10px + env(safe-area-inset-bottom));
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;

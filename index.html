@@ -8,17 +8,18 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen" />
     <title>AR Pocket Farm</title>
     <link rel="stylesheet" href="./style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+
     <script type="importmap">
       {
         "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js"
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
         }
       }
     </script>
   </head>
   <body>
-    <video id="camera-feed" playsinline webkit-playsinline muted></video>
+    <video id="camera-feed" autoplay playsinline webkit-playsinline muted></video>
     <main id="app">
       <div id="scene-root"></div>
 

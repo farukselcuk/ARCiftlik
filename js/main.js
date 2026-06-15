@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Farm } from "./farm.js";
 import { GameUI } from "./ui.js";
 
@@ -33,10 +34,12 @@ let fallbackMode = false;
 let farmAnchor = null;
 let latestHitTestResult = null;
 let latestReferenceSpace = null;
-let lastTouchAt = 0;
 let started = false;
 let cameraStream = null;
 let surfaceStableSince = 0;
+let orbitControls = null;
+let pointerDownPos = null;
+const TAP_THRESHOLD = 12; /* px — movement below this is a tap, above is an orbit drag */
 
 setupLights();
 bindEvents();
@@ -51,6 +54,31 @@ function setupLights() {
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
   scene.add(sun);
+
+  /* Ground plane visible only in fallback mode for depth reference */
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(1.4, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x1a2e24,
+      roughness: 0.95,
+      transparent: true,
+      opacity: 0.55
+    })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.005;
+  ground.receiveShadow = true;
+  ground.name = "fallback-ground";
+  ground.visible = false;
+  scene.add(ground);
+
+  const gridHelper = new THREE.GridHelper(2.4, 18, 0x3a5c4a, 0x2a4638);
+  gridHelper.position.y = -0.003;
+  gridHelper.material.transparent = true;
+  gridHelper.material.opacity = 0.32;
+  gridHelper.name = "fallback-grid";
+  gridHelper.visible = false;
+  scene.add(gridHelper);
 }
 
 function bindEvents() {
@@ -65,12 +93,13 @@ function bindEvents() {
     if (fallbackMode) {
       farm.setPreviewPlacement();
       document.body.classList.add("has-farm");
+      if (orbitControls) orbitControls.target.set(0, 0.08, 0);
     }
   };
 
   window.addEventListener("resize", onResize);
-  renderer.domElement.addEventListener("touchstart", onTap, { passive: false });
-  renderer.domElement.addEventListener("click", onTap);
+  renderer.domElement.addEventListener("pointerdown", onPointerDown);
+  renderer.domElement.addEventListener("pointerup", onPointerUp);
 }
 
 async function handleStartTap(event) {
@@ -83,7 +112,16 @@ async function handleStartTap(event) {
   ui.showToast("Starting AR");
 
   try {
+    let arSupported = false;
     if (navigator.xr) {
+      try {
+        arSupported = await navigator.xr.isSessionSupported("immersive-ar");
+      } catch {
+        arSupported = false;
+      }
+    }
+
+    if (arSupported) {
       await startXRSession();
       return;
     }
@@ -119,7 +157,11 @@ async function startCameraFromUserGesture() {
     audio: false
   });
   cameraFeed.srcObject = cameraStream;
-  await cameraFeed.play();
+  try {
+    await cameraFeed.play();
+  } catch {
+    /* Android may reject play() before user gesture — autoplay attribute handles it */
+  }
   document.body.classList.add("is-camera-active");
 }
 
@@ -158,22 +200,61 @@ function startFallback() {
   document.body.classList.add("is-running", "is-scanning", "is-camera-active");
   reticle.visible = false;
 
-  camera.position.set(0, 0.46, 1.1);
-  camera.lookAt(0, 0, -0.12);
+  /* Show ground reference in fallback mode */
+  const ground = scene.getObjectByName("fallback-ground");
+  const grid = scene.getObjectByName("fallback-grid");
+  if (ground) ground.visible = true;
+  if (grid) grid.visible = true;
+
+  /* Position camera looking down at the farm from an angle */
+  camera.position.set(0, 0.62, 0.85);
+  camera.lookAt(0, 0.08, 0);
+
+  /* Set up orbit controls so user can rotate around the farm */
+  orbitControls = new OrbitControls(camera, renderer.domElement);
+  orbitControls.target.set(0, 0.08, 0);
+  orbitControls.enableDamping = true;
+  orbitControls.dampingFactor = 0.12;
+  orbitControls.enablePan = false;            /* disable pan — only orbit + zoom */
+  orbitControls.minDistance = 0.35;
+  orbitControls.maxDistance = 2.2;
+  orbitControls.minPolarAngle = 0.15;         /* don't let camera go under the ground */
+  orbitControls.maxPolarAngle = Math.PI / 2 - 0.05;
+  orbitControls.rotateSpeed = 0.7;
+  orbitControls.zoomSpeed = 0.8;
+  orbitControls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY };
+  orbitControls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
 
   window.setTimeout(() => {
     if (farm.placed || !fallbackMode) return;
     farm.setPreviewPlacement();
     document.body.classList.add("has-farm");
     document.body.classList.remove("is-scanning");
-    ui.showToast("Farm ready");
-  }, 2000);
+    ui.showToast("Farm ready — drag to orbit");
+  }, 1200);
 }
 
-function onTap(event) {
+function onPointerDown(event) {
   if (event.target.closest("button")) return;
-  if (event.type === "touchstart") lastTouchAt = Date.now();
-  if (event.type === "click" && Date.now() - lastTouchAt < 650) return;
+  pointerDownPos = { x: event.clientX, y: event.clientY };
+}
+
+function onPointerUp(event) {
+  if (event.target.closest("button")) return;
+  if (!pointerDownPos) return;
+
+  const dx = event.clientX - pointerDownPos.x;
+  const dy = event.clientY - pointerDownPos.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  pointerDownPos = null;
+
+  /* If the pointer moved too far, it was an orbit gesture — not a tap */
+  if (dist > TAP_THRESHOLD) return;
+
+  handleTap(event);
+}
+
+function handleTap(event) {
   event.preventDefault();
 
   if (!farm.placed) {
@@ -242,6 +323,7 @@ function render(time, frame) {
     updateReticle(frame);
   }
 
+  if (orbitControls) orbitControls.update();
   farm.update(Date.now(), camera);
   renderer.render(scene, camera);
 }
