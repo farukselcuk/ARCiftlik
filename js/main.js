@@ -156,7 +156,7 @@ function startFallback(cameraOK) {
   if (grid) grid.visible = true;
 
   /* Position camera looking down at the farm from an angle */
-  camera.position.set(0, 0.62, 0.85);
+  camera.position.set(0, 0.84, 1.15);
   camera.lookAt(0, 0.08, 0);
 
   /* Set up orbit controls so user can rotate around the farm */
