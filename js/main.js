@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Farm } from "./farm.js";
 import { GameUI } from "./ui.js";
+import { Character } from "./character.js";
 
 /* ── Platform detection ─────────────────────────────────────────── */
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -27,6 +28,8 @@ sceneRoot.appendChild(renderer.domElement);
 
 const farm = new Farm();
 const ui = new GameUI();
+const character = new Character();
+farm.group.add(character.group);
 scene.add(farm.group);
 
 const reticle = createReticle();
@@ -37,6 +40,9 @@ let cameraStream = null;
 let orbitControls = null;
 let pointerDownPos = null;
 const TAP_THRESHOLD = 12; /* px — movement below this is a tap, above is an orbit drag */
+
+const harvestQueue = [];
+const queuedPlots = new Set();
 
 setupLights();
 bindEvents();
@@ -85,14 +91,44 @@ function bindEvents() {
     reticle.visible = false;
     document.body.classList.remove("has-farm");
     ui.refillIfStuck();
+
+    // Clear harvest queue & reset character
+    harvestQueue.length = 0;
+    queuedPlots.clear();
+    character.reset();
+
     farm.setPreviewPlacement();
     document.body.classList.add("has-farm");
-    if (orbitControls) orbitControls.target.set(0, 0.08, 0);
+    if (orbitControls) {
+      orbitControls.target.set(0, 0.08, 0);
+      camera.position.set(0, 1.13, 1.55);
+      orbitControls.update();
+    }
   };
 
   window.addEventListener("resize", onResize);
   renderer.domElement.addEventListener("pointerdown", onPointerDown);
   renderer.domElement.addEventListener("pointerup", onPointerUp);
+
+  document.querySelector("#zoom-in").addEventListener("click", (e) => {
+    e.stopPropagation();
+    zoomCamera(0.85);
+  });
+  document.querySelector("#zoom-out").addEventListener("click", (e) => {
+    e.stopPropagation();
+    zoomCamera(1.15);
+  });
+}
+
+function zoomCamera(factor) {
+  if (!orbitControls) return;
+  const target = orbitControls.target;
+  const offset = new THREE.Vector3().subVectors(camera.position, target);
+  const newDistance = offset.length() * factor;
+  const clampedDistance = THREE.MathUtils.clamp(newDistance, orbitControls.minDistance, orbitControls.maxDistance);
+  offset.normalize().multiplyScalar(clampedDistance);
+  camera.position.copy(target).add(offset);
+  orbitControls.update();
 }
 
 async function handleStartTap(event) {
@@ -155,8 +191,8 @@ function startFallback(cameraOK) {
   if (ground) ground.visible = true;
   if (grid) grid.visible = true;
 
-  /* Position camera looking down at the farm from an angle */
-  camera.position.set(0, 0.84, 1.15);
+  /* Position camera looking down at the farm from an angle — zoomed out by 35% */
+  camera.position.set(0, 1.13, 1.55);
   camera.lookAt(0, 0.08, 0);
 
   /* Set up orbit controls so user can rotate around the farm */
@@ -166,7 +202,7 @@ function startFallback(cameraOK) {
   orbitControls.dampingFactor = 0.12;
   orbitControls.enablePan = false;            /* disable pan — only orbit + zoom */
   orbitControls.minDistance = 0.35;
-  orbitControls.maxDistance = 2.2;
+  orbitControls.maxDistance = 3.0;
   orbitControls.minPolarAngle = 0.15;         /* don't let camera go under the ground */
   orbitControls.maxPolarAngle = Math.PI / 2 - 0.05;
   orbitControls.rotateSpeed = isMobile ? 0.55 : 0.7;
@@ -219,9 +255,15 @@ function handleTap(event) {
 }
 
 function interactWithPlot(plotIndex) {
-  const harvested = farm.harvest(plotIndex);
-  if (harvested) {
-    ui.earnFor(harvested);
+  if (farm.isReadyToHarvest(plotIndex)) {
+    if (queuedPlots.has(plotIndex)) {
+      ui.showToast("Already in harvest queue!");
+      return;
+    }
+    queuedPlots.add(plotIndex);
+    harvestQueue.push(plotIndex);
+    ui.showToast("Added to harvest queue!");
+    processHarvestQueue();
     return;
   }
 
@@ -237,6 +279,38 @@ function interactWithPlot(plotIndex) {
   }
 
   ui.showPlotStatus(farm.describe(plotIndex));
+}
+
+async function processHarvestQueue() {
+  if (character.busy || harvestQueue.length === 0) return;
+
+  const plotIndex = harvestQueue.shift();
+
+  if (!farm.isReadyToHarvest(plotIndex)) {
+    queuedPlots.delete(plotIndex);
+    processHarvestQueue();
+    return;
+  }
+
+  const plot = farm.plots[plotIndex];
+  const targetPos = plot.group.position.clone();
+  targetPos.z += 0.08;
+
+  try {
+    await character.walkTo(targetPos);
+    character.group.lookAt(plot.group.position.x, 0, plot.group.position.z);
+    await character.playHarvest();
+
+    const harvested = farm.harvest(plotIndex);
+    if (harvested) {
+      ui.earnFor(harvested);
+    }
+  } catch (err) {
+    console.error("Harvesting failed:", err);
+  } finally {
+    queuedPlots.delete(plotIndex);
+    processHarvestQueue();
+  }
 }
 
 function setPointerFromTap(event) {
@@ -260,9 +334,15 @@ function pointerFromClient(clientX, clientY) {
   pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
 }
 
+let lastTime = performance.now();
 function render() {
+  const now = performance.now();
+  const dt = (now - lastTime) / 1000;
+  lastTime = now;
+
   if (orbitControls) orbitControls.update();
   farm.update(Date.now(), camera);
+  character.update(dt);
   renderer.render(scene, camera);
 }
 

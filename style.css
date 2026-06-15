@@ -96,6 +96,12 @@ body.no-camera #camera-feed {
   transition: opacity 160ms ease;
 }
 
+.control-buttons {
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
 .coins,
 .icon-button,
 .crop-button,

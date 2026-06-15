@@ -175,6 +175,12 @@ export class Farm {
     return crop;
   }
 
+  isReadyToHarvest(index) {
+    const plot = this.plots[index];
+    if (!plot || !plot.cropId) return false;
+    return this.getProgress(plot, Date.now()) >= 1;
+  }
+
   describe(index) {
     const plot = this.plots[index];
     if (!plot || !plot.cropId) return "Empty plot";
