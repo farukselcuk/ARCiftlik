@@ -1,17 +1,22 @@
 import { CROP_TYPES } from "./crops.js";
+import { GameStorage } from "./storage.js";
 
-const COIN_SAVE_KEY = "ar-pocket-farm:coins";
 const STARTING_COINS = 100;
 const MIN_PLANTING_COST = Math.min(...Object.values(CROP_TYPES).map((crop) => crop.cost));
 
 export class GameUI {
-  constructor() {
+  /**
+   * @param {GameStorage} storage — merkezi depolama instance'ı
+   */
+  constructor(storage) {
     this.coinEl = document.querySelector("#coin-count");
     this.toastEl = document.querySelector("#toast");
     this.cropButtons = [...document.querySelectorAll(".crop-button")];
     this.waterButton = document.querySelector("#water-tool");
     this.selectedCrop = "wheat";
     this.tool = "crop";
+    /** @type {GameStorage} */
+    this._storage = storage;
     this.coins = this.loadCoins();
     this.onReset = null;
     this._toastTimer = 0;
@@ -37,6 +42,7 @@ export class GameUI {
     this.waterButton?.addEventListener("click", (event) => {
       event.stopPropagation();
       this.tool = this.tool === "water" ? "crop" : "water";
+      window.activeTool = this.tool;
       this.syncSelection();
     });
 
@@ -56,7 +62,7 @@ export class GameUI {
   updateCoins(delta) {
     this.coins = Math.max(0, this.coins + delta);
     this.coinEl.textContent = this.coins.toString();
-    localStorage.setItem(COIN_SAVE_KEY, this.coins.toString());
+    this._storage.saveField("coins", this.coins);
     this.onCoinsChange?.(this.coins);
   }
 
@@ -105,7 +111,7 @@ export class GameUI {
   }
 
   loadCoins() {
-    const saved = Number(localStorage.getItem(COIN_SAVE_KEY));
+    const saved = this._storage.loadField("coins");
     if (!Number.isFinite(saved)) return STARTING_COINS;
     return saved >= MIN_PLANTING_COST ? saved : STARTING_COINS;
   }

@@ -1,6 +1,6 @@
 import * as THREE from "three";
+import { GameStorage } from "./storage.js";
 
-const SAVE_KEY = "ar-pocket-farm:has-pet";
 const State = Object.freeze({ IDLE: 0, WALKING: 1 });
 
 const ORANGE = 0xd27d2d;
@@ -12,10 +12,15 @@ const mat = (color, extra) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.65, ...extra });
 
 export class Pet {
-  constructor() {
+  /**
+   * @param {GameStorage} storage — merkezi depolama instance'ı
+   */
+  constructor(storage) {
     this.group = new THREE.Group();
     this.group.name = "shiba-companion";
     this.state = State.IDLE;
+    /** @type {GameStorage} */
+    this._storage = storage;
     
     this.purchased = this.load();
     this.group.visible = this.purchased;
@@ -23,7 +28,7 @@ export class Pet {
     this.walkTarget = null;
     this._time = 0;
     this._nextWanderTime = Date.now() + 5000;
-    this._coinTimer = Date.now() + 15000; // spawn first coin after 15s
+    this._coinTimer = Date.now() + 15000;
 
     this.hasCoinBubble = false;
     this.coinMesh = null;
@@ -35,20 +40,36 @@ export class Pet {
     this.rightBackLeg = null;
     this.tail = null;
 
+    // Dostluk seviyesi (Faz 7)
+    this.friendshipLevel = 1;
+    this.friendshipXP = 0;
+    this._todayInteractions = 0;
+    this._lastInteractionDate = null;
+
     this._build();
     this.group.add(this.bodyPivot);
 
-    /* Scale to fit plot size */
     this.group.scale.setScalar(0.065);
-    this.group.position.set(0.48, 0, -0.48); // Start at back-right corner
+    this.group.position.set(0.48, 0, -0.48);
   }
 
   load() {
-    return localStorage.getItem(SAVE_KEY) === "true";
+    const petData = this._storage.loadField("pet");
+    if (petData && typeof petData === "object") {
+      // Dostluk verilerini de yükle
+      this.friendshipLevel = Number(petData.friendshipLevel) || 1;
+      this.friendshipXP = Number(petData.friendshipXP) || 0;
+      return Boolean(petData.purchased);
+    }
+    return false;
   }
 
   save() {
-    localStorage.setItem(SAVE_KEY, this.purchased.toString());
+    this._storage.saveField("pet", {
+      purchased: this.purchased,
+      friendshipLevel: this.friendshipLevel,
+      friendshipXP: this.friendshipXP
+    });
   }
 
   purchase() {

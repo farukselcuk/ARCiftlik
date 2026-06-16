@@ -19,10 +19,19 @@ const mat = (color, extra) =>
 const State = Object.freeze({ IDLE: 0, WALKING: 1, HARVESTING: 2 });
 
 export class Character {
-  constructor() {
+  /**
+   * @param {GameStorage} storage — merkezi depolama
+   */
+  constructor(storage = null) {
     this.group = new THREE.Group();
     this.state = State.IDLE;
     this.busy = false;
+    this._storage = storage;
+
+    // Seviye ve XP sistemi
+    this.level = 1;
+    this.xp = 0;
+    this.loadXP();
 
     this._time = 0;
     this._harvestTime = 0;
@@ -46,6 +55,39 @@ export class Character {
     /* Scale down to farm size + starting position */
     this.group.scale.setScalar(0.075);
     this.group.position.set(-0.52, 0, 0.48);
+  }
+
+  loadXP() {
+    if (!this._storage) return;
+    this.level = Number(this._storage.loadField("level")) || 1;
+    this.xp = Number(this._storage.loadField("xp")) || 0;
+  }
+
+  addXP(amount, source) {
+    this.xp += amount;
+    const nextLevelXP = this.level * 100;
+    let leveledUp = false;
+
+    if (this.xp >= nextLevelXP) {
+      this.xp -= nextLevelXP;
+      this.level += 1;
+      leveledUp = true;
+    }
+
+    if (this._storage) {
+      this._storage.saveField("level", this.level);
+      this._storage.saveField("xp", this.xp);
+    }
+
+    window.dispatchEvent(new CustomEvent("xp-updated", {
+      detail: {
+        level: this.level,
+        xp: this.xp,
+        xpGained: amount,
+        source,
+        leveledUp
+      }
+    }));
   }
 
   /* ── Build the full chibi model ────────────────────────────── */

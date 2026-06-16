@@ -1,10 +1,15 @@
 import { CROP_TYPES } from "./crops.js";
+import { GameStorage } from "./storage.js";
 
-const SAVE_KEY = "ar-pocket-farm:orders";
 const VILLAGERS = ["Farmer Bob", "Mayor Alice", "Chef Giovanni", "Baker Tom"];
 
 export class Orders {
-  constructor() {
+  /**
+   * @param {GameStorage} storage — merkezi depolama instance'ı
+   */
+  constructor(storage) {
+    /** @type {GameStorage} */
+    this._storage = storage;
     this.list = this.load();
     if (this.list.length === 0) {
       this.list = this.generateAll();
@@ -14,14 +19,14 @@ export class Orders {
 
   load() {
     try {
-      const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
+      const saved = this._storage.loadField("orders");
       if (Array.isArray(saved) && saved.length === 3) return saved;
     } catch {}
     return [];
   }
 
   save() {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(this.list));
+    this._storage.saveField("orders", this.list);
   }
 
   generateAll() {

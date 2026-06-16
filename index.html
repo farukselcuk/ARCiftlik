@@ -24,14 +24,29 @@
       <div id="scene-root"></div>
 
       <div class="top-bar">
-        <div class="coins" aria-live="polite">
-          <span aria-hidden="true">🪙</span>
-          <span>Coins:</span>
-          <span id="coin-count">100</span>
+        <div class="stats-panel">
+          <div class="coins" aria-live="polite">
+            <span aria-hidden="true">🪙</span>
+            <span id="coin-count">100</span>
+          </div>
+          <div class="level-badge" id="level-badge">
+            <span class="level-icon">⭐</span>
+            <span>Seviye <span id="level-value">1</span></span>
+            <div class="xp-bar-container">
+              <div class="xp-bar-fill" id="xp-bar-fill" style="width: 0%"></div>
+            </div>
+          </div>
+          <div class="env-badges">
+            <span id="weather-badge" class="env-badge" title="Hava Durumu">☀️</span>
+            <span id="season-badge" class="env-badge" title="Mevsim">🌱</span>
+          </div>
         </div>
         <div class="control-buttons">
-          <button id="open-orders" class="icon-button" type="button" aria-label="Open orders">📋</button>
-          <button id="open-market" class="icon-button" type="button" aria-label="Open market">🛒</button>
+          <button id="water-tool" class="icon-button" type="button" aria-label="Water tool" title="Sula">💧</button>
+          <button id="open-expand-btn" class="icon-button" type="button" aria-label="Expand farm" title="Tarlayı Genişlet">⊞</button>
+          <button id="open-settings-btn" class="icon-button" type="button" aria-label="Settings" title="Ayarlar">⚙️</button>
+          <button id="open-orders" class="icon-button" type="button" aria-label="Open orders" title="Siparişler">📋</button>
+          <button id="open-market" class="icon-button" type="button" aria-label="Open market" title="Market">🛒</button>
           <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in">+</button>
           <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">-</button>
           <button id="reset-farm" class="icon-button" type="button" aria-label="Move farm">↻</button>
@@ -44,8 +59,8 @@
       <section id="start-panel" class="start-panel">
         <div class="start-content">
           <h1>AR Pocket Farm</h1>
-          <p>Tap Start to open your farm. You can rotate and zoom with touch gestures.</p>
-          <button id="start-ar" class="primary-button" type="button">Start</button>
+          <p>Çiftliğinizi kurmak için Başlat'a dokunun. Kamera görüntüsü arka planda görünecektir.</p>
+          <button id="start-ar" class="primary-button" type="button">Başlat</button>
         </div>
       </section>
 
@@ -91,6 +106,88 @@
         </div>
       </section>
 
+      <!-- Seed Picker (Bottom Sheet) -->
+      <section id="seed-picker" class="seed-picker-modal">
+        <div class="seed-picker-backdrop"></div>
+        <div class="seed-picker-content">
+          <div class="sheet-handle"></div>
+          <h3>Tohum Seç</h3>
+          <div class="seed-options">
+            <button class="seed-option-card" data-crop="wheat" type="button">
+              <span class="seed-emoji">🌾</span>
+              <span class="seed-name">Buğday</span>
+              <span class="seed-cost">10 🪙</span>
+              <span class="seed-time">60s</span>
+            </button>
+            <button class="seed-option-card" data-crop="corn" type="button">
+              <span class="seed-emoji">🌽</span>
+              <span class="seed-name">Mısır</span>
+              <span class="seed-cost">15 🪙</span>
+              <span class="seed-time">120s</span>
+            </button>
+            <button class="seed-option-card" data-crop="strawberry" type="button">
+              <span class="seed-emoji">🍓</span>
+              <span class="seed-name">Çilek</span>
+              <span class="seed-cost">20 🪙</span>
+              <span class="seed-time">90s</span>
+            </button>
+            <button class="seed-option-card" data-crop="sunflower" type="button">
+              <span class="seed-emoji">🌻</span>
+              <span class="seed-name">Ayçiçeği</span>
+              <span class="seed-cost">25 🪙</span>
+              <span class="seed-time">180s</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Daily Login Modal -->
+      <section id="daily-login-modal" class="daily-login-modal">
+        <div class="modal-backdrop"></div>
+        <div class="daily-login-content">
+          <h2>Günlük Giriş Ödülleri</h2>
+          <p>Her gün giriş yaparak hediyeler kazan!</p>
+          <div class="daily-days-grid">
+            <div class="daily-day-card" data-day="1">
+              <span class="day-num">1. Gün</span>
+              <span class="day-icon">🪙</span>
+              <span class="day-reward">100 Altın</span>
+            </div>
+            <div class="daily-day-card" data-day="2">
+              <span class="day-num">2. Gün</span>
+              <span class="day-icon">🧪</span>
+              <span class="day-reward">2 Gübre</span>
+            </div>
+            <div class="daily-day-card" data-day="3">
+              <span class="day-num">3. Gün</span>
+              <span class="day-icon">🌾</span>
+              <span class="day-reward">Nadir Tohum</span>
+            </div>
+            <div class="daily-day-card" data-day="4">
+              <span class="day-num">4. Gün</span>
+              <span class="day-icon">🐕</span>
+              <span class="day-reward">Şiba Pet</span>
+            </div>
+            <div class="daily-day-card" data-day="5">
+              <span class="day-num">5. Gün</span>
+              <span class="day-icon">🪙</span>
+              <span class="day-reward">500 Altın</span>
+            </div>
+            <div class="daily-day-card" data-day="6">
+              <span class="day-num">6. Gün</span>
+              <span class="day-icon">👑</span>
+              <span class="day-reward">Altın Şapka</span>
+            </div>
+            <div class="daily-day-card" data-day="7">
+              <span class="day-num">7. Gün</span>
+              <span class="day-icon">🎁</span>
+              <span class="day-reward">Altın Sandık</span>
+            </div>
+          </div>
+          <button id="claim-daily-btn" class="primary-button" type="button">Ödülü Al</button>
+        </div>
+      </section>
+
       <div id="surface-hint" class="surface-hint">Move your phone slowly to find a surface</div>
 
       <nav class="bottom-bar" aria-label="Crop selection">
@@ -109,6 +206,65 @@
         <button class="crop-button" type="button" data-crop="sunflower">
           <span class="crop-title">🌻 Sunflower</span>
           <span class="crop-stats">Buy: 25 | Profit: +45<br>Grow: 180s</span>
+        </button>
+      </nav>
+
+      <!-- Çiftlik Genişletme Modalı -->
+      <section id="expand-modal" class="market-modal">
+        <div class="market-content">
+          <button id="close-expand" class="close-button" type="button" aria-label="Kapat">✕</button>
+          <h2>Tarlayı Genişlet</h2>
+          <p id="expand-info-label" style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 15px;">Çiftliğinizi büyütmek için şartları karşılayın:</p>
+          <div class="market-items" style="gap: 10px; margin-bottom: 20px;">
+            <div class="market-item" id="req-level" style="flex-direction: row; justify-content: space-between; padding: 12px;">
+              <span style="font-weight: bold;">Gerekli Seviye: <span id="req-level-val">3</span></span>
+              <span class="req-status" style="font-weight: 900; color: #ff6b6b;">✗</span>
+            </div>
+            <div class="market-item" id="req-gold" style="flex-direction: row; justify-content: space-between; padding: 12px;">
+              <span style="font-weight: bold;">Gerekli Altın: <span id="req-gold-val">500</span> 🪙</span>
+              <span class="req-status" style="font-weight: 900; color: #ff6b6b;">✗</span>
+            </div>
+          </div>
+          <button id="expand-confirm-btn" class="primary-button" type="button" disabled>Genişlet</button>
+        </div>
+      </section>
+
+      <!-- Ayarlar Modalı -->
+      <section id="settings-modal" class="market-modal">
+        <div class="market-content">
+          <button id="close-settings" class="close-button" type="button" aria-label="Kapat">✕</button>
+          <h2>Oyun Ayarları</h2>
+          <div class="market-items" style="gap: 10px;">
+            <div class="market-item" style="padding: 12px; gap: 8px;">
+              <h3 style="margin: 0; font-size: 16px;">Grafik Kalitesi</h3>
+              <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.7); line-height: 1.35;">Cihazınızın performansına göre grafik kalitesini seçin (değişiklik sonrası oyun yeniden yüklenecektir).</p>
+              <div style="display: flex; gap: 8px; margin-top: 10px; width: 100%;">
+                <button class="primary-button quality-btn" data-quality="low" style="background: #e94042; color: white; min-height: 38px; font-size: 12px;" type="button">Düşük 🔋</button>
+                <button class="primary-button quality-btn" data-quality="medium" style="background: #f3ce3d; color: black; min-height: 38px; font-size: 12px;" type="button">Dengeli ⚖️</button>
+                <button class="primary-button quality-btn" data-quality="high" style="background: #4eb36a; color: white; min-height: 38px; font-size: 12px;" type="button">Yüksek 🚀</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bottom Tab Bar -->
+      <nav class="tab-bar">
+        <button class="tab-button active" data-scene="farm" type="button">
+          <span class="tab-icon">🌱</span>
+          <span class="tab-label">Tarla</span>
+        </button>
+        <button class="tab-button" data-scene="barn" type="button">
+          <span class="tab-icon">🏠</span>
+          <span class="tab-label">Çiftlik</span>
+        </button>
+        <button class="tab-button" data-scene="bakery" type="button" id="tab-bakery" style="opacity: 0.5;">
+          <span class="tab-icon">🍞🔒</span>
+          <span class="tab-label">Fırın</span>
+        </button>
+        <button class="tab-button" data-scene="market" type="button">
+          <span class="tab-icon">🛒</span>
+          <span class="tab-label">Market</span>
         </button>
       </nav>
     </main>

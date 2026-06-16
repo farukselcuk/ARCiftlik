@@ -1,12 +1,18 @@
 import * as THREE from "three";
 import { CROP_TYPES, createCropMesh, getStage } from "./crops.js";
+import { GameStorage } from "./storage.js";
 
-const GRID_SIZE = 4;
 const PLOT_SIZE = 0.28;
 const PLOT_GAP = 0.035;
-const FARM_SAVE_KEY = "ar-pocket-farm:plots";
-const UNLOCKED_PLOTS_SAVE_KEY = "ar-pocket-farm:unlocked-plots";
 const DEFAULT_UNLOCKED_PLOTS = 4;
+
+export const FARM_EXPANSIONS = [
+  { id: 1, gridRows: 3, gridCols: 3, requiredLevel: 1,  cost: 0,     label: 'Başlangıç Tarlası' },
+  { id: 2, gridRows: 4, gridCols: 4, requiredLevel: 3,  cost: 500,   label: 'Küçük Tarla' },
+  { id: 3, gridRows: 4, gridCols: 5, requiredLevel: 5,  cost: 1500,  label: 'Orta Tarla' },  // 4x5
+  { id: 4, gridRows: 5, gridCols: 5, requiredLevel: 7,  cost: 3000,  label: 'Büyük Tarla' },
+  { id: 5, gridRows: 6, gridCols: 6, requiredLevel: 10, cost: 8000,  label: 'Dev Çiftlik' },
+];
 
 const dirtMaterial = new THREE.MeshBasicMaterial({
   color: 0x7b4d2a,
@@ -20,12 +26,27 @@ const progressFillMaterial = new THREE.MeshBasicMaterial({ color: 0x69d47a });
 const particleMaterial = new THREE.MeshStandardMaterial({ color: 0xffdd55, roughness: 0.48 });
 
 export class Farm {
-  constructor() {
+  /**
+   * @param {GameStorage} storage — merkezi depolama instance'ı
+   */
+  constructor(storage) {
     this.group = new THREE.Group();
     this.group.visible = false;
     this.plots = [];
     this.particles = [];
     this.plotMeshes = [];
+    /** @type {GameStorage} */
+    this._storage = storage;
+
+    // Hava durumu ve mevsim büyüme çarpanları (dışarıdan ayarlanır)
+    this.weatherGrowMultiplier = 1.0;
+    this.seasonGrowMultiplier = 1.0;
+
+    // Izgara genişleme seviyesi
+    this.expansionId = this.loadExpansionId();
+    const exp = FARM_EXPANSIONS.find(e => e.id === this.expansionId) || FARM_EXPANSIONS[0];
+    this.gridRows = exp.gridRows;
+    this.gridCols = exp.gridCols;
 
     this.unlockedPlotsCount = this.loadUnlockedPlotsCount();
 
@@ -54,9 +75,11 @@ export class Farm {
   }
 
   createBase() {
-    const totalSize = GRID_SIZE * PLOT_SIZE + (GRID_SIZE - 1) * PLOT_GAP;
+    const totalW = this.gridCols * PLOT_SIZE + (this.gridCols - 1) * PLOT_GAP;
+    const totalH = this.gridRows * PLOT_SIZE + (this.gridRows - 1) * PLOT_GAP;
+
     const base = new THREE.Mesh(
-      new THREE.PlaneGeometry(totalSize + 0.16, totalSize + 0.16),
+      new THREE.PlaneGeometry(totalW + 0.16, totalH + 0.16),
       new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.18 })
     );
     base.rotation.x = -Math.PI / 2;
@@ -64,11 +87,11 @@ export class Farm {
     base.receiveShadow = true;
     this.group.add(base);
 
-    for (let row = 0; row < GRID_SIZE; row += 1) {
-      for (let col = 0; col < GRID_SIZE; col += 1) {
-        const index = row * GRID_SIZE + col;
-        const x = col * (PLOT_SIZE + PLOT_GAP) - totalSize / 2 + PLOT_SIZE / 2;
-        const z = row * (PLOT_SIZE + PLOT_GAP) - totalSize / 2 + PLOT_SIZE / 2;
+    for (let row = 0; row < this.gridRows; row += 1) {
+      for (let col = 0; col < this.gridCols; col += 1) {
+        const index = row * this.gridCols + col;
+        const x = col * (PLOT_SIZE + PLOT_GAP) - totalW / 2 + PLOT_SIZE / 2;
+        const z = row * (PLOT_SIZE + PLOT_GAP) - totalH / 2 + PLOT_SIZE / 2;
 
         const plotGroup = new THREE.Group();
         plotGroup.position.set(x, 0, z);
@@ -220,14 +243,14 @@ export class Farm {
   }
 
   describe(index) {
-    if (this.isLocked(index)) return "Locked plot";
+    if (this.isLocked(index)) return "Kilitli parsel";
     const plot = this.plots[index];
-    if (!plot || !plot.cropId) return "Empty plot";
+    if (!plot || !plot.cropId) return "Boş tarla";
 
     const crop = CROP_TYPES[plot.cropId];
     const progress = this.getProgress(plot, Date.now());
-    if (progress >= 1) return `${crop.name} is ready`;
-    return `${crop.name} ${Math.round(progress * 100)}% grown`;
+    if (progress >= 1) return `${crop.name} hasada hazır!`;
+    return `${crop.name} %${Math.round(progress * 100)} büyüdü`;
   }
 
   update(now, camera) {
@@ -261,7 +284,9 @@ export class Farm {
   getProgress(plot, now) {
     const crop = CROP_TYPES[plot.cropId];
     if (!crop) return 0;
-    return Math.min(1, (now - plot.plantedAt + plot.boostMs) / crop.growTime);
+    const growMultiplier = this.weatherGrowMultiplier * this.seasonGrowMultiplier;
+    const effectiveElapsed = (now - plot.plantedAt + plot.boostMs) * growMultiplier;
+    return Math.min(1, effectiveElapsed / crop.growTime);
   }
 
   refreshCropMesh(plot, stage) {
@@ -341,12 +366,12 @@ export class Farm {
       plantedAt: plot.plantedAt,
       boostMs: plot.boostMs
     }));
-    localStorage.setItem(FARM_SAVE_KEY, JSON.stringify(data));
+    this._storage.saveField("plots", data);
   }
 
   load() {
     try {
-      const data = JSON.parse(localStorage.getItem(FARM_SAVE_KEY) || "[]");
+      const data = this._storage.loadField("plots") || [];
       data.forEach((saved, index) => {
         if (!saved || !CROP_TYPES[saved.cropId] || !this.plots[index]) return;
         const plot = this.plots[index];
@@ -355,18 +380,17 @@ export class Farm {
         plot.boostMs = Number(saved.boostMs) || 0;
         this.refreshCropMesh(plot, getStage(this.getProgress(plot, Date.now())));
       });
-    } catch {
-      localStorage.removeItem(FARM_SAVE_KEY);
-    }
+    } catch {}
   }
 
   loadUnlockedPlotsCount() {
-    const saved = Number(localStorage.getItem(UNLOCKED_PLOTS_SAVE_KEY));
-    return Number.isInteger(saved) && saved >= 1 && saved <= 16 ? saved : DEFAULT_UNLOCKED_PLOTS;
+    const saved = this._storage.loadField("unlockedPlots");
+    const maxPlots = this.maxPlotsOfCurrentExpansion();
+    return Number.isInteger(saved) && saved >= 1 && saved <= 36 ? Math.min(saved, maxPlots) : Math.min(DEFAULT_UNLOCKED_PLOTS, maxPlots);
   }
 
   saveUnlockedPlotsCount() {
-    localStorage.setItem(UNLOCKED_PLOTS_SAVE_KEY, this.unlockedPlotsCount.toString());
+    this._storage.saveField("unlockedPlots", this.unlockedPlotsCount);
   }
 
   isLocked(index) {
@@ -374,7 +398,8 @@ export class Farm {
   }
 
   unlockPlot() {
-    if (this.unlockedPlotsCount >= 16) return false;
+    const maxPlots = this.maxPlotsOfCurrentExpansion();
+    if (this.unlockedPlotsCount >= maxPlots) return false;
     const plot = this.plots[this.unlockedPlotsCount];
     if (plot && plot.lockMesh) {
       plot.group.remove(plot.lockMesh);
@@ -394,15 +419,59 @@ export class Farm {
       this.clearPlot(plot);
     }
     
-    this.unlockedPlotsCount = DEFAULT_UNLOCKED_PLOTS;
+    this.unlockedPlotsCount = Math.min(DEFAULT_UNLOCKED_PLOTS, this.maxPlotsOfCurrentExpansion());
     this.saveUnlockedPlotsCount();
 
-    for (let i = DEFAULT_UNLOCKED_PLOTS; i < 16; i += 1) {
+    const maxPlots = this.maxPlotsOfCurrentExpansion();
+    for (let i = this.unlockedPlotsCount; i < maxPlots; i += 1) {
       const plot = this.plots[i];
       if (plot) {
         plot.lockMesh = this.createLockMesh();
         plot.group.add(plot.lockMesh);
       }
     }
+  }
+
+  // ── Çiftlik Genişletme API ─────────────────────────────────────
+  
+  loadExpansionId() {
+    const saved = this._storage.loadField("expansionId");
+    return Number.isInteger(saved) && saved >= 1 && saved <= 5 ? saved : 1;
+  }
+
+  saveExpansionId() {
+    this._storage.saveField("expansionId", this.expansionId);
+  }
+
+  maxPlotsOfCurrentExpansion() {
+    return this.gridRows * this.gridCols;
+  }
+
+  expandFarm(expansionId) {
+    if (expansionId < 1 || expansionId > 5) return false;
+    this.expansionId = expansionId;
+    this.saveExpansionId();
+
+    const exp = FARM_EXPANSIONS.find(e => e.id === this.expansionId) || FARM_EXPANSIONS[0];
+    this.gridRows = exp.gridRows;
+    this.gridCols = exp.gridCols;
+
+    this.unlockedPlotsCount = this.loadUnlockedPlotsCount();
+
+    // Three.js sahnelerini temizle ve baştan oluştur
+    this.rebuildGrid();
+    return true;
+  }
+
+  rebuildGrid() {
+    const toRemove = [];
+    this.group.children.forEach(c => toRemove.push(c));
+    toRemove.forEach(c => this.group.remove(c));
+
+    this.plots = [];
+    this.plotMeshes = [];
+
+    this.createBase();
+    this.load();
   }
 }

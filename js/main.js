@@ -1,102 +1,400 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { Farm } from "./farm.js";
+import { GameStorage } from "./storage.js";
+import { SceneManager } from "./scene-manager.js";
+import { DailyLogin } from "./daily-login.js";
+import { WeatherSystem } from "./weather.js";
+import { SeasonSystem } from "./seasons.js";
 import { GameUI } from "./ui.js";
-import { Character } from "./character.js";
 import { Inventory } from "./inventory.js";
 import { Orders } from "./orders.js";
 import { CROP_TYPES } from "./crops.js";
-import { Pet } from "./pet.js";
+import { setupViewportFix } from "./permissions.js";
+import { FARM_EXPANSIONS } from "./farm.js";
+import { Performance } from "./performance.js";
 
-/* ── Platform detection ─────────────────────────────────────────── */
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-              (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+// Viewport düzeltmesi (Android klavye sorunu)
+setupViewportFix();
 
 const sceneRoot = document.querySelector("#scene-root");
 const startButton = document.querySelector("#start-ar");
-const cameraFeed = document.querySelector("#camera-feed");
 
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 20);
+// Renderer oluştur
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-const raycaster = new THREE.Raycaster();
-const pointer = new THREE.Vector2(0, 0);
-
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.xr.enabled = false; /* WebXR disabled — universal camera+orbit mode used instead */
-renderer.shadowMap.enabled = true;
+renderer.setPixelRatio(1.0); // Benchmark ile güncellenecek
+renderer.shadowMap.enabled = false; // Benchmark ile güncellenecek
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setSize(window.innerWidth, window.innerHeight);
 sceneRoot.appendChild(renderer.domElement);
 
-const farm = new Farm();
-const ui = new GameUI();
-const character = new Character();
-const inventory = new Inventory();
-const orders = new Orders();
-const pet = new Pet();
-farm.group.add(character.group);
-farm.group.add(pet.group);
-scene.add(farm.group);
+// Storages (Her prefix için ayrı GameStorage instance'ı)
+const globalStorage = new GameStorage("global");
+const farmStorage = new GameStorage("farm");
+const barnStorage = new GameStorage("barn");
+const marketStorage = new GameStorage("market");
+const bakeryStorage = new GameStorage("bakery");
 
-const reticle = createReticle();
-scene.add(reticle);
+// Göç / Bildirim kontrolü
+let _migrationNotice = null;
+globalStorage.onMigrationNotice = (oldVer, newVer) => {
+  _migrationNotice = `Güncelleme geldi (v${oldVer} → v${newVer}), verileriniz güncellendi!`;
+};
+globalStorage.checkVersion();
+farmStorage.checkVersion();
+barnStorage.checkVersion();
+marketStorage.checkVersion();
+bakeryStorage.checkVersion();
 
-let started = false;
-let cameraStream = null;
-let orbitControls = null;
-let pointerDownPos = null;
-const TAP_THRESHOLD = 12; /* px — movement below this is a tap, above is an orbit drag */
+// Paylaşımlı Global Modüller
+const inventory = new Inventory(globalStorage);
+const orders = new Orders(globalStorage);
+const dailyLogin = new DailyLogin(globalStorage);
+const weatherSystem = new WeatherSystem(globalStorage);
+const seasonSystem = new SeasonSystem(globalStorage);
 
-const harvestQueue = [];
-const queuedPlots = new Set();
+window.seasonSystem = seasonSystem;
+window.weatherSystem = weatherSystem;
+window.cycleStartTime = Date.now();
 
-let ambientLight = null;
-let sunLight = null;
-let firefliesGroup = null;
+// UI Yönetimi
+const ui = new GameUI(globalStorage);
 
-setupLights();
-setupFireflies();
-bindEvents();
-renderer.setAnimationLoop(render);
+// Scene Manager (Sahne yönetim sistemi)
+const sceneManager = new SceneManager(renderer, globalStorage, farmStorage, barnStorage, marketStorage, bakeryStorage);
+sceneManager.initAll();
 
-function setupLights() {
-  ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-  scene.add(ambientLight);
+// Performans Modu Ayarlama
+let performanceConfig = null;
+async function initPerformance() {
+  const quality = await Performance.detect();
+  performanceConfig = Performance.apply(quality, renderer);
+  
+  // Settings modal buton durumlarını ayarla
+  const qualityBtns = document.querySelectorAll(".quality-btn");
+  qualityBtns.forEach(btn => {
+    if (btn.dataset.quality === quality) {
+      btn.style.boxShadow = "0 0 0 3px white";
+    }
+  });
 
-  sunLight = new THREE.DirectionalLight(0xffffff, 2.2);
-  sunLight.position.set(1.2, 2.8, 1.6);
-  sunLight.castShadow = true;
-  sunLight.shadow.mapSize.set(1024, 1024);
-  scene.add(sunLight);
+  if (started) {
+    ui.showToast(`${performanceConfig.label} aktif!`);
+  }
+}
+initPerformance();
 
-  /* Ground plane visible only in fallback mode for depth reference */
-  const ground = new THREE.Mesh(
-    new THREE.CircleGeometry(1.4, 48),
-    new THREE.MeshStandardMaterial({
-      color: 0x1a2e24,
-      roughness: 0.95,
-      transparent: true,
-      opacity: 0.55
-    })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.005;
-  ground.receiveShadow = true;
-  ground.name = "fallback-ground";
-  ground.visible = false;
-  scene.add(ground);
+// Karakter Seviye / XP UI Senkronizasyonu
+const character = sceneManager.scenes.farm.character; // Karakter referansı
+character.loadXP();
+updateXPUI(character.level, character.xp, false);
 
-  const gridHelper = new THREE.GridHelper(2.4, 18, 0x3a5c4a, 0x2a4638);
-  gridHelper.position.y = -0.003;
-  gridHelper.material.transparent = true;
-  gridHelper.material.opacity = 0.32;
-  gridHelper.name = "fallback-grid";
-  gridHelper.visible = false;
-  scene.add(gridHelper);
+function updateXPUI(level, xp, leveledUp) {
+  const nextLevelXP = level * 100;
+  const fillPercent = Math.min(100, (xp / nextLevelXP) * 100);
+  document.querySelector("#level-value").textContent = level;
+  document.querySelector("#xp-bar-fill").style.width = `${fillPercent}%`;
+  
+  // Fırın kilidi görsel senkronizasyonu (Seviye 5)
+  const bakeryTab = document.querySelector("#tab-bakery");
+  if (bakeryTab) {
+    if (level >= 5) {
+      bakeryTab.style.opacity = "1";
+      bakeryTab.querySelector(".tab-icon").textContent = "🍞";
+    } else {
+      bakeryTab.style.opacity = "0.5";
+      bakeryTab.querySelector(".tab-icon").textContent = "🍞🔒";
+    }
+  }
+
+  if (leveledUp) {
+    ui.showToast(`🎉 Tebrikler! Seviye atladınız: Seviye ${level}`);
+  }
 }
 
+// Global Event Listeners (Sahnelerden gelen olayları dinler)
+window.addEventListener("xp-updated", (e) => {
+  const { level, xp, leveledUp } = e.detail;
+  updateXPUI(level, xp, leveledUp);
+});
+
+window.addEventListener("coins-reward", (e) => {
+  ui.updateCoins(e.detail.amount);
+});
+
+window.addEventListener("spend-coins", (e) => {
+  const { amount, callback } = e.detail;
+  if (ui.coins >= amount) {
+    ui.updateCoins(-amount);
+    callback(true);
+  } else {
+    ui.showToast("🪙 Yetersiz Altın!");
+    callback(false);
+  }
+});
+
+window.addEventListener("xp-gain", (e) => {
+  character.addXP(e.detail.amount, e.detail.source);
+});
+
+window.addEventListener("toast", (e) => {
+  ui.showToast(e.detail.text);
+});
+
+window.addEventListener("open-market-panel", () => {
+  updateMarketUI();
+  updateMarketSellList();
+  document.querySelector("#market-panel").classList.add("is-visible");
+});
+
+window.addEventListener("crop-harvested", (e) => {
+  const { cropId, name, isGolden } = e.detail;
+  const harvestBonus = seasonSystem.getHarvestBonus();
+  
+  if (isGolden) {
+    inventory.add(`golden_${cropId}`, 1);
+    ui.showToast(`✨ ALTIN ${name.toUpperCase()} HASAT EDİLDİ! (10x Fiyat) ✨`);
+    character.addXP(15, "harvest_golden");
+  } else {
+    const extra = Math.random() < (harvestBonus - 1) ? 2 : 1;
+    inventory.add(cropId, extra);
+    ui.showToast(`${extra} adet ${name} hasat edildi!`);
+    character.addXP(5, "harvest");
+  }
+
+  updateMarketSellList();
+  updateOrdersUI();
+});
+
+// Alet yönetimi (Sulama aleti toggling)
+window.activeTool = "crop";
+const waterToolBtn = document.querySelector("#water-tool");
+if (waterToolBtn) {
+  waterToolBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    window.activeTool = window.activeTool === "water" ? "crop" : "water";
+    waterToolBtn.classList.toggle("is-selected", window.activeTool === "water");
+    ui.showToast(window.activeTool === "water" ? "Sulama modu aktif 💧" : "Ekim modu aktif 🌱");
+  });
+}
+
+// Tohum Emojileri
+const CROP_EMOJIS = {
+  wheat: "🌾",
+  corn: "🌽",
+  carrot: "🥕",
+  strawberry: "🍓",
+  potato: "🥔",
+  sunflower: "🌻",
+  tomato: "🍅",
+  pumpkin: "🎃",
+  blueberry: "🫐"
+};
+
+// Tohum Seçim Bottom Sheet Entegrasyonu
+let activePlotIndexForPlanting = null;
+const seedPicker = document.querySelector("#seed-picker");
+
+// Tohum seçeneklerini crops.js'deki verilere göre dinamik oluştur
+function populateSeedPicker() {
+  const container = document.querySelector(".seed-options");
+  if (!container) return;
+  container.innerHTML = "";
+
+  Object.values(CROP_TYPES).forEach(crop => {
+    const card = document.createElement("button");
+    card.className = "seed-option-card";
+    card.dataset.crop = crop.id;
+    card.type = "button";
+
+    const emoji = CROP_EMOJIS[crop.id] || "🌱";
+    const growSeconds = crop.growTime / 1000;
+    
+    // Sezon bilgisi formatı
+    const seasonLabel = crop.seasons.includes("all") ? "Her Mevsim" : crop.seasons.map(s => {
+      if (s === "spring") return "İlkbahar";
+      if (s === "summer") return "Yaz";
+      if (s === "autumn") return "Sonbahar";
+      return "Kış";
+    }).join("/");
+
+    card.innerHTML = `
+      <span class="seed-emoji">${emoji}</span>
+      <span class="seed-name">${crop.name}</span>
+      <span class="seed-cost">${crop.cost} 🪙</span>
+      <span class="seed-time">${growSeconds}s | ${seasonLabel}</span>
+    `;
+    container.appendChild(card);
+  });
+
+  bindSeedCards();
+}
+
+function bindSeedCards() {
+  const seedCards = document.querySelectorAll(".seed-option-card");
+  seedCards.forEach(card => {
+    card.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const cropId = card.dataset.crop;
+      const crop = CROP_TYPES[cropId];
+
+      // Seviye kısıtlaması kontrolü
+      if (character.level < crop.unlockedAt) {
+        ui.showToast(`🔒 ${crop.name} ekmek için Seviye ${crop.unlockedAt} olmalısınız!`);
+        return;
+      }
+
+      // Mevsim kısıtlaması kontrolü
+      if (!seasonSystem.canPlant(cropId)) {
+        const season = seasonSystem.getCurrentSeason();
+        ui.showToast(`❌ ${season.icon} ${season.name} mevsiminde bu ürün ekilemez!`);
+        return;
+      }
+      
+      // Para kontrolü
+      if (ui.coins < crop.cost) {
+        ui.showToast("🪙 Yetersiz Altın!");
+        return;
+      }
+      
+      if (activePlotIndexForPlanting !== null) {
+        // Ekim yap
+        sceneManager.scenes.farm.plantPlot(activePlotIndexForPlanting, cropId);
+        
+        // Sürüklemeyi tetiklemek için tohum ID'sini ayarla
+        sceneManager.scenes.farm.dragSeedId = cropId;
+        
+        seedPicker.classList.remove("is-visible");
+        activePlotIndexForPlanting = null;
+      }
+    });
+  });
+}
+
+window.addEventListener("open-seed-picker", (e) => {
+  activePlotIndexForPlanting = e.detail.plotIndex;
+  
+  // Tohum kartlarının kilit/para durumlarını güncelle
+  const cards = document.querySelectorAll(".seed-option-card");
+  cards.forEach(card => {
+    const cropId = card.dataset.crop;
+    const crop = CROP_TYPES[cropId];
+    
+    // Coin yetersizliği
+    if (ui.coins < crop.cost) {
+      card.classList.add("insufficient-funds");
+    } else {
+      card.classList.remove("insufficient-funds");
+    }
+    
+    // Seviye kilitleri
+    const nameSpan = card.querySelector(".seed-name");
+    if (character.level < crop.unlockedAt) {
+      card.classList.add("locked");
+      card.style.opacity = "0.5";
+      if (nameSpan) nameSpan.textContent = `Kilitli (Lv ${crop.unlockedAt})`;
+    } else {
+      card.classList.remove("locked");
+      card.style.opacity = "1";
+      if (nameSpan) nameSpan.textContent = crop.name;
+    }
+  });
+  
+  seedPicker.classList.add("is-visible");
+});
+
+// Seed Picker kapatma
+document.querySelector(".seed-picker-backdrop").addEventListener("click", () => {
+  seedPicker.classList.remove("is-visible");
+});
+
+populateSeedPicker();
+
+// Günlük Giriş Entegrasyonu
+function checkDailyLogin() {
+  const loginInfo = dailyLogin.checkLogin();
+  if (loginInfo) {
+    const modal = document.querySelector("#daily-login-modal");
+    modal.classList.add("is-visible");
+    
+    // Kartların durumlarını vurgula
+    const dayCards = document.querySelectorAll(".daily-day-card");
+    dayCards.forEach(card => {
+      const day = parseInt(card.dataset.day);
+      card.classList.remove("current", "claimed");
+      if (day < loginInfo.streak) {
+        card.classList.add("claimed");
+      } else if (day === loginInfo.streak) {
+        card.classList.add("current");
+      }
+    });
+
+    const claimBtn = document.querySelector("#claim-daily-btn");
+    claimBtn.onclick = (e) => {
+      e.stopPropagation();
+      const reward = dailyLogin.claimReward();
+      if (reward) {
+        if (reward.type === "gold") {
+          ui.updateCoins(reward.amount);
+          ui.showToast(`🎁 Günlük Giriş: +${reward.amount} 🪙!`);
+        } else if (reward.type === "fertilizer") {
+          ui.showToast(`🎁 Günlük Giriş: ${reward.amount} adet Gübre kazanıldı!`);
+        } else if (reward.type === "seed") {
+          inventory.add(reward.id, reward.amount);
+          ui.showToast(`🎁 Günlük Giriş: ${reward.amount} adet Mısır tohumu kazanıldı!`);
+        } else if (reward.type === "boost") {
+          ui.showToast(`🎁 Günlük Giriş: Büyüme Hızlandırıcı kazanıldı!`);
+        } else if (reward.type === "golden_chest") {
+          ui.showToast(`🎁 Günlük Giriş: Altın Sandık kazanıldı!`);
+        }
+        
+        character.addXP(10, "daily");
+        modal.classList.remove("is-visible");
+        updateMarketSellList();
+        updateOrdersUI();
+      }
+    };
+  }
+}
+
+// Hava Durumu ve Mevsim UI Güncellemeleri
+weatherSystem.onWeatherChange = (newWeather, info) => {
+  ui.showToast(`Hava değişti: ${info.icon} ${info.name}`);
+  updateWeatherUI();
+};
+
+seasonSystem.onSeasonChange = (oldSeason, newSeason) => {
+  const info = SeasonSystem.SEASONS[newSeason];
+  ui.showToast(`Mevsim değişti: ${info.icon} ${info.name}`);
+  updateSeasonUI();
+};
+
+function updateWeatherUI() {
+  const weather = weatherSystem.getCurrentWeather();
+  document.querySelector("#weather-badge").textContent = `${weather.icon}`;
+  document.querySelector("#weather-badge").title = `Hava Durumu: ${weather.name}`;
+}
+
+function updateSeasonUI() {
+  const season = seasonSystem.getCurrentSeason();
+  document.querySelector("#season-badge").textContent = `${season.icon}`;
+  document.querySelector("#season-badge").title = `Mevsim: ${season.name}`;
+}
+
+// Sandık açılma ödülleri
+sceneManager.scenes.farm.chestSystem.onChestOpened = (loot) => {
+  if (loot.type === "gold") {
+    ui.updateCoins(loot.amount);
+    ui.showToast(`🎁 Sandıktan ${loot.amount} altın çıktı!`);
+  } else if (loot.type === "seed" && loot.cropId) {
+    inventory.add(loot.cropId, loot.amount || 1);
+    ui.showToast(`🎁 Sandıktan ${loot.cropId} tohumu çıktı!`);
+  } else if (loot.type === "fertilizer") {
+    ui.showToast(`🎁 Sandıktan gübre çıktı!`);
+  }
+  updateMarketSellList();
+};
+
+// Başlat Buton Etkileşimi
+let started = false;
 let zoomInterval = null;
 
 function startZooming(factor) {
@@ -114,192 +412,292 @@ function stopZooming() {
   }
 }
 
-function bindEvents() {
-  startButton.addEventListener("click", handleStartTap);
-  ui.onReset = () => {
-    farm.resetPlacement();
-    reticle.visible = false;
-    document.body.classList.remove("has-farm");
-    ui.refillIfStuck();
-
-    // Clear harvest queue & reset character
-    harvestQueue.length = 0;
-    queuedPlots.clear();
-    character.reset();
-
-    // Reset unlocked plots, inventory, orders, and pet
-    farm.resetUnlockedPlots();
-    inventory.reset();
-    orders.reset();
-    pet.reset();
-    
-    updateMarketUI();
-    updateMarketSellList();
-    updateOrdersUI();
-
-    farm.setPreviewPlacement();
-    document.body.classList.add("has-farm");
-    if (orbitControls) {
-      orbitControls.target.set(0, 0.08, 0);
-      camera.position.set(0, 1.3, 1.8);
-      orbitControls.update();
-    }
-  };
-
-  ui.onCoinsChange = () => {
-    updateMarketUI();
-    updateMarketSellList();
-    updateOrdersUI();
-  };
-
-  window.addEventListener("resize", onResize);
-  renderer.domElement.addEventListener("pointerdown", onPointerDown);
-  renderer.domElement.addEventListener("pointerup", onPointerUp);
-
-  // Press-and-hold zoom functionality
-  const zoomInBtn = document.querySelector("#zoom-in");
-  const zoomOutBtn = document.querySelector("#zoom-out");
-
-  zoomInBtn.addEventListener("pointerdown", (e) => { e.stopPropagation(); startZooming(0.95); });
-  zoomInBtn.addEventListener("pointerup", (e) => { e.stopPropagation(); stopZooming(); });
-  zoomInBtn.addEventListener("pointerleave", (e) => { e.stopPropagation(); stopZooming(); });
-  zoomInBtn.addEventListener("pointercancel", (e) => { e.stopPropagation(); stopZooming(); });
-  zoomInBtn.addEventListener("click", (e) => e.preventDefault());
-
-  zoomOutBtn.addEventListener("pointerdown", (e) => { e.stopPropagation(); startZooming(1.05); });
-  zoomOutBtn.addEventListener("pointerup", (e) => { e.stopPropagation(); stopZooming(); });
-  zoomOutBtn.addEventListener("pointerleave", (e) => { e.stopPropagation(); stopZooming(); });
-  zoomOutBtn.addEventListener("pointercancel", (e) => { e.stopPropagation(); stopZooming(); });
-  zoomOutBtn.addEventListener("click", (e) => e.preventDefault());
-
-  // Market Modal bindings
-  const marketPanel = document.querySelector("#market-panel");
-  const openMarketBtn = document.querySelector("#open-market");
-  const closeMarketBtn = document.querySelector("#close-market");
-  const buyPlotBtn = document.querySelector("#buy-plot");
-
-  openMarketBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    updateMarketUI();
-    updateMarketSellList();
-    marketPanel.classList.add("is-visible");
-  });
-
-  closeMarketBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    marketPanel.classList.remove("is-visible");
-  });
-
-  marketPanel.addEventListener("click", (e) => {
-    if (e.target === marketPanel) {
-      marketPanel.classList.remove("is-visible");
-    }
-  });
-
-  buyPlotBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const count = farm.unlockedPlotsCount;
-    if (count >= 16) return;
-
-    const price = 50 * (count - 1);
-    if (ui.coins >= price) {
-      ui.updateCoins(-price);
-      const success = farm.unlockPlot();
-      if (success) {
-        ui.showToast("New plot expanded!");
-        updateMarketUI();
-      }
-    } else {
-      ui.showToast("Need more coins!");
-    }
-  });
-
-  const buyPetBtn = document.querySelector("#buy-pet");
-  buyPetBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (pet.purchased) return;
-    const petCost = 150;
-    if (ui.coins >= petCost) {
-      ui.updateCoins(-petCost);
-      pet.purchase();
-      ui.showToast("Shiba companion unlocked! 🐕");
-      updateMarketUI();
-    } else {
-      ui.showToast("Need more coins!");
-    }
-  });
-
-  // Orders Modal bindings
-  const ordersPanel = document.querySelector("#orders-panel");
-  const openOrdersBtn = document.querySelector("#open-orders");
-  const closeOrdersBtn = document.querySelector("#close-orders");
-
-  openOrdersBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    updateOrdersUI();
-    ordersPanel.classList.add("is-visible");
-  });
-
-  closeOrdersBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    ordersPanel.classList.remove("is-visible");
-  });
-
-  ordersPanel.addEventListener("click", (e) => {
-    if (e.target === ordersPanel) {
-      ordersPanel.classList.remove("is-visible");
-    }
-  });
-
-  updateMarketUI();
-  updateMarketSellList();
-  updateOrdersUI();
+function zoomCamera(factor) {
+  const activeScene = sceneManager.activeScene;
+  if (!activeScene || !activeScene.controls) return;
+  const controls = activeScene.controls;
+  const camera = activeScene.camera;
+  const target = controls.target;
+  const offset = new THREE.Vector3().subVectors(camera.position, target);
+  const newDistance = offset.length() * factor;
+  const clampedDistance = THREE.MathUtils.clamp(newDistance, controls.minDistance, controls.maxDistance);
+  offset.normalize().multiplyScalar(clampedDistance);
+  camera.position.copy(target).add(offset);
+  controls.update();
 }
 
-function updateMarketUI() {
-  const modal = document.querySelector("#market-panel");
-  const buyBtn = document.querySelector("#buy-plot");
-  const statsEl = document.querySelector("#plot-expansion-stats");
-  const petStatusEl = document.querySelector("#pet-status");
-  const buyPetBtn = document.querySelector("#buy-pet");
-
-  if (!modal || !buyBtn || !statsEl) return;
-
-  const count = farm.unlockedPlotsCount;
-  statsEl.textContent = `Unlocked: ${count}/16`;
-
-  if (count >= 16) {
-    buyBtn.textContent = "Max Limit Reached";
-    buyBtn.disabled = true;
+startButton.addEventListener("click", (e) => {
+  e.preventDefault();
+  if (started) return;
+  started = true;
+  document.body.classList.add("is-running");
+  
+  if (performanceConfig) {
+    ui.showToast(`${performanceConfig.label} aktif!`);
   } else {
-    const price = 50 * (count - 1);
-    buyBtn.textContent = `Buy for ${price} 🪙`;
-    buyBtn.disabled = ui.coins < price;
+    ui.showToast("Oyun Başlıyor…");
   }
 
-  // Update pet card state
-  if (petStatusEl && buyPetBtn) {
-    if (pet.purchased) {
-      petStatusEl.textContent = "Purchased";
-      buyPetBtn.textContent = "Owned 🐕";
-      buyPetBtn.disabled = true;
-    } else {
-      petStatusEl.textContent = "Not Purchased";
-      buyPetBtn.textContent = "Buy for 150 🪙";
-      buyPetBtn.disabled = ui.coins < 150;
+  // Günlük girişi denetle
+  setTimeout(checkDailyLogin, 1000);
+
+  if (_migrationNotice) {
+    setTimeout(() => ui.showToast(_migrationNotice), 1500);
+    _migrationNotice = null;
+  }
+});
+
+// Event Bindings
+window.addEventListener("resize", () => {
+  sceneManager.resize(window.innerWidth, window.innerHeight);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Zoom buton olayları
+const zoomInBtn = document.querySelector("#zoom-in");
+const zoomOutBtn = document.querySelector("#zoom-out");
+
+zoomInBtn.addEventListener("pointerdown", (e) => { e.stopPropagation(); startZooming(0.95); });
+zoomInBtn.addEventListener("pointerup", (e) => { e.stopPropagation(); stopZooming(); });
+zoomInBtn.addEventListener("pointerleave", (e) => { e.stopPropagation(); stopZooming(); });
+zoomInBtn.addEventListener("pointercancel", (e) => { e.stopPropagation(); stopZooming(); });
+
+zoomOutBtn.addEventListener("pointerdown", (e) => { e.stopPropagation(); startZooming(1.05); });
+zoomOutBtn.addEventListener("pointerup", (e) => { e.stopPropagation(); stopZooming(); });
+zoomOutBtn.addEventListener("pointerleave", (e) => { e.stopPropagation(); stopZooming(); });
+zoomOutBtn.addEventListener("pointercancel", (e) => { e.stopPropagation(); stopZooming(); });
+
+// Reset/Taşıma butonu
+document.querySelector("#reset-farm").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (sceneManager.activeSceneKey === "farm") {
+    sceneManager.scenes.farm.farm.resetUnlockedPlots();
+    sceneManager.scenes.farm.character.reset();
+    sceneManager.scenes.farm.pet.reset();
+    inventory.reset();
+    orders.reset();
+    ui.refillIfStuck();
+    updateMarketSellList();
+    updateOrdersUI();
+    ui.showToast("Çiftlik sıfırlandı!");
+  }
+});
+
+
+
+// Market Modal
+const marketPanel = document.querySelector("#market-panel");
+const openMarketBtn = document.querySelector("#open-market");
+const closeMarketBtn = document.querySelector("#close-market");
+const buyPlotBtn = document.querySelector("#buy-plot");
+
+openMarketBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  updateMarketUI();
+  updateMarketSellList();
+  marketPanel.classList.add("is-visible");
+});
+
+closeMarketBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  marketPanel.classList.remove("is-visible");
+});
+
+buyPlotBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const count = sceneManager.scenes.farm.farm.unlockedPlotsCount;
+  const maxPlots = sceneManager.scenes.farm.farm.maxPlotsOfCurrentExpansion();
+  if (count >= maxPlots) return;
+
+  const price = 50 * (count - 1);
+  if (ui.coins >= price) {
+    ui.updateCoins(-price);
+    const success = sceneManager.scenes.farm.farm.unlockPlot();
+    if (success) {
+      ui.showToast("Yeni arsa genişletildi!");
+      updateMarketUI();
     }
+  } else {
+    ui.showToast("🪙 Yetersiz Altın!");
+  }
+});
+
+const buyPetBtn = document.querySelector("#buy-pet");
+buyPetBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const petData = globalStorage.loadField("pet") || {};
+  if (petData.purchased) return;
+  
+  const petCost = 150;
+  if (ui.coins >= petCost) {
+    ui.updateCoins(-petCost);
+    
+    globalStorage.saveField("pet", {
+      purchased: true,
+      friendshipLevel: 1,
+      friendshipXP: 0
+    });
+    
+    sceneManager.scenes.farm.pet.purchase();
+    sceneManager.scenes.barn.shibaGroup.visible = true;
+
+    ui.showToast("Shiba yoldaşınız açıldı! 🐕");
+    updateMarketUI();
+  } else {
+    ui.showToast("🪙 Yetersiz Altın!");
+  }
+});
+
+// Sipariş Paneli
+const ordersPanel = document.querySelector("#orders-panel");
+const openOrdersBtn = document.querySelector("#open-orders");
+const closeOrdersBtn = document.querySelector("#close-orders");
+
+openOrdersBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  updateOrdersUI();
+  ordersPanel.classList.add("is-visible");
+});
+
+closeOrdersBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  ordersPanel.classList.remove("is-visible");
+});
+
+// Ayarlar Modalı Yönetimi
+const settingsPanel = document.querySelector("#settings-modal");
+const openSettingsBtn = document.querySelector("#open-settings-btn");
+const closeSettingsBtn = document.querySelector("#close-settings");
+
+openSettingsBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  settingsPanel.classList.add("is-visible");
+});
+
+closeSettingsBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  settingsPanel.classList.remove("is-visible");
+});
+
+const qualityBtns = document.querySelectorAll(".quality-btn");
+qualityBtns.forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const quality = btn.dataset.quality;
+    Performance.setOverride(quality);
+  });
+});
+
+// Genişletme Modalı Yönetimi
+const expandPanel = document.querySelector("#expand-modal");
+const openExpandBtn = document.querySelector("#open-expand-btn");
+const closeExpandBtn = document.querySelector("#close-expand");
+const expandConfirmBtn = document.querySelector("#expand-confirm-btn");
+
+openExpandBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  updateExpandUI();
+  expandPanel.classList.add("is-visible");
+});
+
+closeExpandBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  expandPanel.classList.remove("is-visible");
+});
+
+function updateExpandUI() {
+  const currentExpId = sceneManager.scenes.farm.farm.expansionId;
+  const nextExpId = currentExpId + 1;
+  const nextExp = FARM_EXPANSIONS.find(e => e.id === nextExpId);
+  const infoLabel = document.querySelector("#expand-info-label");
+
+  if (!nextExp) {
+    infoLabel.textContent = "Çiftliğiniz Maksimum Genişliğe Ulaştı! 🎉";
+    document.querySelector("#req-level-val").textContent = "-";
+    document.querySelector("#req-gold-val").textContent = "-";
+    document.querySelector("#req-level .req-status").textContent = "✓";
+    document.querySelector("#req-level .req-status").style.color = "#4eb36a";
+    document.querySelector("#req-gold .req-status").textContent = "✓";
+    document.querySelector("#req-gold .req-status").style.color = "#4eb36a";
+    expandConfirmBtn.disabled = true;
+    return;
+  }
+
+  infoLabel.textContent = `Çiftliğinizi "${nextExp.label}" seviyesine büyütün:`;
+  document.querySelector("#req-level-val").textContent = nextExp.requiredLevel;
+  document.querySelector("#req-gold-val").textContent = nextExp.cost;
+
+  const levelMet = character.level >= nextExp.requiredLevel;
+  const goldMet = ui.coins >= nextExp.cost;
+
+  // Seviye şartı görseli
+  const reqLevelStatus = document.querySelector("#req-level .req-status");
+  reqLevelStatus.textContent = levelMet ? "✓" : "✗";
+  reqLevelStatus.style.color = levelMet ? "#4eb36a" : "#ff6b6b";
+
+  // Altın şartı görseli
+  const reqGoldStatus = document.querySelector("#req-gold .req-status");
+  reqGoldStatus.textContent = goldMet ? "✓" : "✗";
+  reqGoldStatus.style.color = goldMet ? "#4eb36a" : "#ff6b6b";
+
+  expandConfirmBtn.disabled = !(levelMet && goldMet);
+}
+
+expandConfirmBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const currentExpId = sceneManager.scenes.farm.farm.expansionId;
+  const nextExpId = currentExpId + 1;
+  const nextExp = FARM_EXPANSIONS.find(e => e.id === nextExpId);
+
+  if (nextExp && ui.coins >= nextExp.cost && character.level >= nextExp.requiredLevel) {
+    ui.updateCoins(-nextExp.cost);
+    
+    // Sahneyi genişlet
+    const success = sceneManager.scenes.farm.farm.expandFarm(nextExpId);
+    if (success) {
+      ui.showToast(`🏗️ Çiftlik genişletildi: ${nextExp.label}!`);
+      sceneManager.scenes.farm.controls.update(); // Kamera kontrolünü yenile
+    }
+    
+    expandPanel.classList.remove("is-visible");
+  }
+});
+
+// UI Helper fonksiyonları
+function updateMarketUI() {
+  const count = sceneManager.scenes.farm.farm.unlockedPlotsCount;
+  const maxPlots = sceneManager.scenes.farm.farm.maxPlotsOfCurrentExpansion();
+  document.querySelector("#plot-expansion-stats").textContent = `Açılan: ${count}/${maxPlots}`;
+
+  const price = 50 * (count - 1);
+  buyPlotBtn.textContent = count >= maxPlots ? "Maksimum Parsel" : `Satın Al: ${price} 🪙`;
+  buyPlotBtn.disabled = count >= maxPlots || ui.coins < price;
+
+  const petData = globalStorage.loadField("pet") || {};
+  const petStatusEl = document.querySelector("#pet-status");
+  if (petData.purchased) {
+    petStatusEl.textContent = `Sahip Olundu (Lv ${petData.friendshipLevel || 1})`;
+    buyPetBtn.textContent = "Satın Alındı 🐕";
+    buyPetBtn.disabled = true;
+  } else {
+    petStatusEl.textContent = "Satın Alınmadı";
+    buyPetBtn.textContent = "Satın Al: 150 🪙";
+    buyPetBtn.disabled = ui.coins < 150;
   }
 }
 
 function updateMarketSellList() {
   const sellListEl = document.querySelector("#market-sell-list");
   if (!sellListEl) return;
-  
   sellListEl.innerHTML = "";
   
-  const cropKeys = ["wheat", "corn", "strawberry", "sunflower"];
-  const cropNames = { wheat: "🌾 Wheat", corn: "🌽 Corn", strawberry: "🍓 Strawberry", sunflower: "🌻 Sunflower" };
+  const cropKeys = Object.keys(CROP_TYPES);
+  const cropNames = {};
+  cropKeys.forEach(k => {
+    cropNames[k] = `${CROP_EMOJIS[k]} ${CROP_TYPES[k].name}`;
+  });
   
+  // Normal ekin satışları
   cropKeys.forEach((cropId) => {
     const count = inventory.getCount(cropId);
     const basePrice = CROP_TYPES[cropId].reward;
@@ -309,20 +707,52 @@ function updateMarketSellList() {
     itemEl.innerHTML = `
       <div class="sell-info">
         <span class="sell-name">${cropNames[cropId]}</span>
-        <span class="sell-count">In stock: ${count}</span>
+        <span class="sell-count">Stok: ${count}</span>
       </div>
-      <button class="sell-button" type="button" data-crop="${cropId}" ${count <= 0 ? "disabled" : ""}>
-        Sell for ${basePrice} 🪙
+      <button class="sell-button" type="button" ${count <= 0 ? "disabled" : ""}>
+        Sat: ${basePrice} 🪙
       </button>
     `;
     sellListEl.appendChild(itemEl);
     
-    const btn = itemEl.querySelector(".sell-button");
-    btn.addEventListener("click", (e) => {
+    itemEl.querySelector(".sell-button").addEventListener("click", (e) => {
       e.stopPropagation();
       if (inventory.deduct(cropId, 1)) {
         ui.updateCoins(basePrice);
-        ui.showToast(`Sold 1 ${cropId}!`);
+        ui.showToast(`1 adet ${CROP_TYPES[cropId].name} satıldı!`);
+        character.addXP(3, "sell");
+        updateMarketSellList();
+        updateOrdersUI();
+      }
+    });
+  });
+
+  // Altın ekin satışları (10x Fiyat)
+  cropKeys.forEach((cropId) => {
+    const goldenId = `golden_${cropId}`;
+    const count = inventory.getCount(goldenId);
+    if (count <= 0) return;
+
+    const goldenPrice = CROP_TYPES[cropId].reward * 10;
+    const itemEl = document.createElement("div");
+    itemEl.className = "sell-item sell-item-golden";
+    itemEl.innerHTML = `
+      <div class="sell-info">
+        <span class="sell-name">✨ Altın ${cropNames[cropId]}</span>
+        <span class="sell-count">Stok: ${count}</span>
+      </div>
+      <button class="sell-button sell-button-golden" type="button">
+        Sat: ${goldenPrice} 🪙
+      </button>
+    `;
+    sellListEl.appendChild(itemEl);
+
+    itemEl.querySelector(".sell-button-golden").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (inventory.deduct(goldenId, 1)) {
+        ui.updateCoins(goldenPrice);
+        ui.showToast(`✨ Altın ${CROP_TYPES[cropId].name} satıldı! +${goldenPrice} 🪙`);
+        character.addXP(10, "sell_golden");
         updateMarketSellList();
         updateOrdersUI();
       }
@@ -333,7 +763,6 @@ function updateMarketSellList() {
 function updateOrdersUI() {
   const ordersListEl = document.querySelector("#orders-list");
   if (!ordersListEl) return;
-  
   ordersListEl.innerHTML = "";
   
   orders.list.forEach((order) => {
@@ -342,15 +771,17 @@ function updateOrdersUI() {
     
     let reqsHtml = "";
     const canComplete = orders.canFulfill(order.id, inventory);
-    
-    const cropNames = { wheat: "🌾 Wheat", corn: "🌽 Corn", strawberry: "🍓 Strawberry", sunflower: "🌻 Sunflower" };
+    const cropNames = {};
+    Object.keys(CROP_TYPES).forEach(k => {
+      cropNames[k] = `${CROP_EMOJIS[k]} ${CROP_TYPES[k].name}`;
+    });
     
     order.reqs.forEach((req) => {
       const hasCount = inventory.getCount(req.cropId);
       const isMet = hasCount >= req.amount;
       reqsHtml += `
         <span class="order-req ${isMet ? "is-met" : "is-missing"}">
-          ${cropNames[req.cropId]}: ${hasCount}/${req.amount}
+          ${cropNames[req.cropId] || req.cropId}: ${hasCount}/${req.amount}
         </span>
       `;
     });
@@ -364,18 +795,18 @@ function updateOrdersUI() {
         ${reqsHtml}
       </div>
       <button class="primary-button order-complete-btn" type="button" ${!canComplete ? "disabled" : ""}>
-        Complete Order
+        Siparişi Tamamla
       </button>
     `;
     ordersListEl.appendChild(itemEl);
     
-    const completeBtn = itemEl.querySelector(".order-complete-btn");
-    completeBtn.addEventListener("click", (e) => {
+    itemEl.querySelector(".order-complete-btn").addEventListener("click", (e) => {
       e.stopPropagation();
       const fulfilled = orders.fulfill(order.id, inventory);
       if (fulfilled) {
         ui.updateCoins(fulfilled.reward);
-        ui.showToast(`Order fulfilled! Earned ${fulfilled.reward} 🪙`);
+        ui.showToast(`Sipariş tamamlandı! +${fulfilled.reward} 🪙`);
+        character.addXP(15, "order");
         updateOrdersUI();
         updateMarketSellList();
       }
@@ -383,388 +814,24 @@ function updateOrdersUI() {
   });
 }
 
-function zoomCamera(factor) {
-  if (!orbitControls) return;
-  const target = orbitControls.target;
-  const offset = new THREE.Vector3().subVectors(camera.position, target);
-  const newDistance = offset.length() * factor;
-  const clampedDistance = THREE.MathUtils.clamp(newDistance, orbitControls.minDistance, orbitControls.maxDistance);
-  offset.normalize().multiplyScalar(clampedDistance);
-  camera.position.copy(target).add(offset);
-  orbitControls.update();
-}
+// İlklendirme çağrıları
+updateWeatherUI();
+updateSeasonUI();
 
-async function handleStartTap(event) {
-  event.preventDefault();
-  if (started) return;
-
-  started = true;
-  startButton.disabled = true;
-  document.body.classList.add("is-running");
-  ui.showToast("Starting…");
-
-  /* Always use camera + 3D orbit mode — works on ALL devices */
-  let cameraOK = false;
-  try {
-    await startCameraFromUserGesture();
-    cameraOK = true;
-  } catch (cameraError) {
-    console.warn("Camera unavailable — continuing without camera:", cameraError);
-    /* Scene will display over a gradient background instead */
-  }
-  startFallback(cameraOK);
-}
-
-async function startCameraFromUserGesture() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error("Camera API unavailable");
-  }
-
-  /* iOS Safari needs exact constraints — don't over-specify */
-  const constraints = {
-    video: isIOS
-      ? { facingMode: "environment" }
-      : { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-    audio: false
-  };
-
-  cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
-  cameraFeed.srcObject = cameraStream;
-  try {
-    await cameraFeed.play();
-  } catch {
-    /* Some browsers reject play() before user gesture — autoplay attribute handles it */
-  }
-  document.body.classList.add("is-camera-active");
-}
-
-function startFallback(cameraOK) {
-  document.body.classList.add("is-running");
-  if (cameraOK) {
-    document.body.classList.add("is-camera-active");
-  } else {
-    /* No camera — show nice gradient background instead */
-    document.body.classList.add("no-camera");
-  }
-  reticle.visible = false;
-
-  /* Show ground reference */
-  const ground = scene.getObjectByName("fallback-ground");
-  const grid = scene.getObjectByName("fallback-grid");
-  if (ground) ground.visible = true;
-  if (grid) grid.visible = true;
-
-  /* Position camera looking down at the farm from an angle — zoomed out for 4x4 grid */
-  camera.position.set(0, 1.3, 1.8);
-  camera.lookAt(0, 0.08, 0);
-
-  /* Set up orbit controls so user can rotate around the farm */
-  orbitControls = new OrbitControls(camera, renderer.domElement);
-  orbitControls.target.set(0, 0.08, 0);
-  orbitControls.enableDamping = true;
-  orbitControls.dampingFactor = 0.12;
-  orbitControls.enablePan = true;
-  orbitControls.minDistance = 0.35;
-  orbitControls.maxDistance = 4.0;
-  orbitControls.minPolarAngle = 0.15;         /* don't let camera go under the ground */
-  orbitControls.maxPolarAngle = Math.PI / 2 - 0.05;
-  orbitControls.rotateSpeed = isMobile ? 0.55 : 0.7;
-  orbitControls.zoomSpeed = 0.8;
-  orbitControls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
-  orbitControls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
-
-  window.setTimeout(() => {
-    if (farm.placed) return;
-    farm.setPreviewPlacement();
-    document.body.classList.add("has-farm");
-    document.body.classList.remove("is-scanning");
-    ui.showToast(cameraOK ? "Farm ready — drag to orbit" : "Farm ready");
-  }, 800);
-}
-
-function onPointerDown(event) {
-  if (event.target.closest("button")) return;
-  pointerDownPos = { x: event.clientX, y: event.clientY };
-}
-
-function onPointerUp(event) {
-  if (event.target.closest("button")) return;
-  if (!pointerDownPos) return;
-
-  const dx = event.clientX - pointerDownPos.x;
-  const dy = event.clientY - pointerDownPos.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  pointerDownPos = null;
-
-  /* If the pointer moved too far, it was an orbit gesture — not a tap */
-  if (dist > TAP_THRESHOLD) return;
-
-  handleTap(event);
-}
-
-function handleTap(event) {
-  event.preventDefault();
-
-  if (!farm.placed) return;
-
-  setPointerFromTap(event);
-
-  raycaster.setFromCamera(pointer, camera);
-
-  // Check if we tapped the Shiba companion dog first
-  if (pet.purchased) {
-    const petHits = raycaster.intersectObjects(pet.group.children, true);
-    if (petHits.length > 0) {
-      if (pet.hasCoinBubble) {
-        if (pet.collectCoin()) {
-          ui.updateCoins(15);
-          ui.showToast("Shiba found a coin! +15 🪙");
-        }
-      } else {
-        ui.showToast("Woof! 🐕");
-      }
-      return;
-    }
-  }
-
-  // Otherwise check plots
-  const hits = raycaster.intersectObjects(farm.getPlotMeshes(), false);
-  if (!hits.length) return;
-
-  const plotIndex = hits[0].object.userData.plotIndex;
-  interactWithPlot(plotIndex);
-}
-
-function interactWithPlot(plotIndex) {
-  if (farm.isLocked(plotIndex)) {
-    updateMarketUI();
-    document.querySelector("#market-panel").classList.add("is-visible");
-    ui.showToast("Plot is locked! Open market to expand.");
-    return;
-  }
-
-  if (farm.isReadyToHarvest(plotIndex)) {
-    if (queuedPlots.has(plotIndex)) {
-      ui.showToast("Already in harvest queue!");
-      return;
-    }
-    queuedPlots.add(plotIndex);
-    harvestQueue.push(plotIndex);
-    ui.showToast("Added to harvest queue!");
-    processHarvestQueue();
-    return;
-  }
-
-  if (ui.tool === "water") {
-    ui.showToast(farm.water(plotIndex) ? "Watered" : farm.describe(plotIndex));
-    return;
-  }
-
-  if (farm.isEmpty(plotIndex) && ui.spendFor(ui.selectedCrop)) {
-    const planted = farm.plant(plotIndex, ui.selectedCrop);
-    ui.showToast(`${planted.name} planted`);
-    return;
-  }
-
-  ui.showPlotStatus(farm.describe(plotIndex));
-}
-
-async function processHarvestQueue() {
-  if (character.busy || harvestQueue.length === 0) return;
-
-  const plotIndex = harvestQueue.shift();
-
-  if (!farm.isReadyToHarvest(plotIndex)) {
-    queuedPlots.delete(plotIndex);
-    processHarvestQueue();
-    return;
-  }
-
-  const plot = farm.plots[plotIndex];
-  const targetPos = plot.group.position.clone();
-  targetPos.z += 0.08;
-
-  try {
-    await character.walkTo(targetPos);
-    character.group.lookAt(plot.group.position.x, 0, plot.group.position.z);
-    await character.playHarvest();
-
-    const harvested = farm.harvest(plotIndex);
-    if (harvested) {
-      inventory.add(harvested.id, 1);
-      ui.showToast(`Harvested: ${harvested.name}!`);
-      updateMarketSellList();
-      updateOrdersUI();
-    }
-  } catch (err) {
-    console.error("Harvesting failed:", err);
-  } finally {
-    queuedPlots.delete(plotIndex);
-    processHarvestQueue();
-  }
-}
-
-function setPointerFromTap(event) {
-  const touch = event.changedTouches?.[0] || event.touches?.[0];
-  if (touch) {
-    pointerFromClient(touch.clientX, touch.clientY);
-    return;
-  }
-
-  if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) {
-    pointerFromClient(event.clientX, event.clientY);
-    return;
-  }
-
-  pointer.set(0, 0);
-}
-
-function pointerFromClient(clientX, clientY) {
-  const rect = renderer.domElement.getBoundingClientRect();
-  pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-}
-
+// Render Loop
 let lastTime = performance.now();
 function render() {
   const now = performance.now();
   const dt = (now - lastTime) / 1000;
   lastTime = now;
 
-  if (orbitControls) orbitControls.update();
-  farm.update(Date.now(), camera);
-  character.update(dt);
-  pet.update(dt);
-  updateDayNightCycle(Date.now());
-  renderer.render(scene, camera);
+  const realNow = Date.now();
+
+  weatherSystem.update(realNow);
+  seasonSystem.update(realNow);
+  sceneManager.update(dt, realNow);
+
+  sceneManager.render();
+  requestAnimationFrame(render);
 }
-
-/* WebXR hit-test / anchor code removed — universal camera+orbit mode is used */
-
-function createReticle() {
-  const geometry = new THREE.RingGeometry(0.12, 0.135, 36).rotateX(-Math.PI / 2);
-  const material = new THREE.MeshBasicMaterial({ color: 0xffd45a, transparent: true, opacity: 0.92 });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.matrixAutoUpdate = false;
-  mesh.visible = false;
-  return mesh;
-}
-
-function onResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-function stopCameraPreview() {
-  if (!cameraStream) return;
-  for (const track of cameraStream.getTracks()) track.stop();
-  cameraStream = null;
-  cameraFeed.srcObject = null;
-  document.body.classList.remove("is-camera-active");
-}
-
-function setupFireflies() {
-  firefliesGroup = new THREE.Group();
-  firefliesGroup.visible = false;
-  
-  const fireflyGeo = new THREE.SphereGeometry(0.008, 6, 4);
-  const fireflyMat = new THREE.MeshBasicMaterial({ color: 0xaaff55 });
-  
-  for (let i = 0; i < 12; i += 1) {
-    const mesh = new THREE.Mesh(fireflyGeo, fireflyMat);
-    mesh.position.set(
-      (Math.random() - 0.5) * 1.2,
-      0.05 + Math.random() * 0.25,
-      (Math.random() - 0.5) * 1.2
-    );
-    mesh.userData = {
-      baseX: mesh.position.x,
-      baseY: mesh.position.y,
-      baseZ: mesh.position.z,
-      seedX: Math.random() * 100,
-      seedY: Math.random() * 100,
-      seedZ: Math.random() * 100
-    };
-    firefliesGroup.add(mesh);
-  }
-  farm.group.add(firefliesGroup);
-}
-
-let cycleStartTime = Date.now();
-const PHASE_DAY = 30000;
-const PHASE_SUNSET = 15000;
-const PHASE_NIGHT = 30000;
-const PHASE_SUNRISE = 15000;
-const TOTAL_CYCLE = PHASE_DAY + PHASE_SUNSET + PHASE_NIGHT + PHASE_SUNRISE;
-
-function updateDayNightCycle(now) {
-  if (!ambientLight || !sunLight) return;
-  
-  const elapsed = (now - cycleStartTime) % TOTAL_CYCLE;
-  
-  let phase = "day";
-  let t = 0;
-  
-  let targetAmbientIntensity = 1.5;
-  let targetSunIntensity = 2.2;
-  let targetSunColor = new THREE.Color(0xffffff);
-  
-  if (elapsed < PHASE_DAY) {
-    phase = "day";
-    targetAmbientIntensity = 1.5;
-    targetSunIntensity = 2.2;
-    targetSunColor.setHex(0xffffff);
-  } else if (elapsed < PHASE_DAY + PHASE_SUNSET) {
-    phase = "sunset";
-    t = (elapsed - PHASE_DAY) / PHASE_SUNSET;
-    targetAmbientIntensity = THREE.MathUtils.lerp(1.5, 0.7, t);
-    targetSunIntensity = THREE.MathUtils.lerp(2.2, 0.8, t);
-    targetSunColor.lerpColors(new THREE.Color(0xffffff), new THREE.Color(0xff7744), t);
-  } else if (elapsed < PHASE_DAY + PHASE_SUNSET + PHASE_NIGHT) {
-    phase = "night";
-    t = (elapsed - (PHASE_DAY + PHASE_SUNSET)) / PHASE_NIGHT;
-    if (t < 0.2) {
-      const transitionT = t / 0.2;
-      targetAmbientIntensity = THREE.MathUtils.lerp(0.7, 0.35, transitionT);
-      targetSunIntensity = THREE.MathUtils.lerp(0.8, 0.15, transitionT);
-      targetSunColor.lerpColors(new THREE.Color(0xff7744), new THREE.Color(0x5577aa), transitionT);
-    } else {
-      targetAmbientIntensity = 0.35;
-      targetSunIntensity = 0.15;
-      targetSunColor.setHex(0x5577aa);
-    }
-  } else {
-    phase = "sunrise";
-    t = (elapsed - (PHASE_DAY + PHASE_SUNSET + PHASE_NIGHT)) / PHASE_SUNRISE;
-    targetAmbientIntensity = THREE.MathUtils.lerp(0.35, 1.5, t);
-    targetSunIntensity = THREE.MathUtils.lerp(0.15, 2.2, t);
-    targetSunColor.lerpColors(new THREE.Color(0x5577aa), new THREE.Color(0xffaa66), t);
-  }
-  
-  ambientLight.intensity = targetAmbientIntensity;
-  sunLight.intensity = targetSunIntensity;
-  sunLight.color.copy(targetSunColor);
-  
-  if (firefliesGroup) {
-    const isNightPhase = phase === "night";
-    firefliesGroup.visible = isNightPhase;
-    if (isNightPhase) {
-      const timeSec = now * 0.001;
-      firefliesGroup.children.forEach((ff) => {
-        ff.position.x = ff.userData.baseX + Math.sin(timeSec + ff.userData.seedX) * 0.08;
-        ff.position.y = ff.userData.baseY + Math.sin(timeSec * 1.5 + ff.userData.seedY) * 0.05;
-        ff.position.z = ff.userData.baseZ + Math.cos(timeSec + ff.userData.seedZ) * 0.08;
-      });
-    }
-  }
-  
-  const body = document.body;
-  if (body.classList.contains("no-camera")) {
-    const timeClass = `${phase}-time`;
-    if (!body.classList.contains(timeClass)) {
-      body.classList.remove("day-time", "sunset-time", "night-time", "sunrise-time");
-      body.classList.add(timeClass);
-    }
-  }
-}
+requestAnimationFrame(render);

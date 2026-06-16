@@ -7,6 +7,8 @@
   --accent: #ffd45a;
   --leaf: #4eb36a;
   --text: #f7fbf4;
+  /* Android klavye viewport düzeltmesi — JS'den güncellenir */
+  --vh: 1vh;
 }
 
 * {
@@ -19,8 +21,17 @@ body,
 #scene-root {
   width: 100%;
   height: 100%;
+  height: calc(var(--vh, 1vh) * 100);
   margin: 0;
   overflow: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* dvh desteği olan tarayıcılarda tercih et */
+@supports (height: 100dvh) {
+  html, body, #app, #scene-root {
+    height: 100dvh;
+  }
 }
 
 body {
@@ -616,6 +627,201 @@ body.is-running .bottom-bar {
 }
 
 .order-req.is-missing {
+}
+
+.market-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.item-info h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  color: #fff;
+}
+
+.item-info p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: rgba(247, 251, 244, 0.72);
+  line-height: 1.35;
+}
+
+.item-stats {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--leaf);
+}
+
+/* Divider inside Market */
+.market-divider {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 20px 0;
+}
+
+/* Sell List Layout */
+.market-sell-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.sell-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.sell-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sell-name {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.sell-count {
+  font-size: 12px;
+  color: rgba(247, 251, 244, 0.65);
+}
+
+.sell-button {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 212, 90, 0.5);
+  background: var(--accent);
+  color: #231b04;
+  cursor: pointer;
+  width: auto;
+}
+
+.sell-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(247, 251, 244, 0.32);
+  border-color: transparent;
+}
+
+/* Orders Modal */
+.orders-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+}
+
+.orders-modal.is-visible {
+  display: grid;
+}
+
+.orders-content {
+  position: relative;
+  width: min(450px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(18, 28, 24, 0.92);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+}
+
+.orders-content h2 {
+  margin: 0 0 20px;
+  font-size: 24px;
+  text-align: center;
+  color: var(--accent);
+}
+
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.order-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.order-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.order-villager {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.order-reward {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(255, 212, 90, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.order-reqs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.order-req {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.order-req.is-met {
+  border-color: rgba(78, 179, 106, 0.45);
+  background: rgba(78, 179, 106, 0.12);
+  color: #69d47a;
+}
+
+.order-req.is-missing {
   border-color: rgba(233, 64, 66, 0.35);
   background: rgba(233, 64, 66, 0.08);
   color: #ff6b6b;
@@ -625,4 +831,316 @@ body.is-running .bottom-bar {
   margin-top: 4px;
   min-height: 38px;
   border-radius: 6px;
+}
+
+/* ── STATS PANEL & LEVEL BADGE ── */
+.stats-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.level-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 800;
+  backdrop-filter: blur(14px);
+}
+
+.xp-bar-container {
+  width: 70px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.xp-bar-fill {
+  height: 100%;
+  background: #4eb36a;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.env-badges {
+  display: flex;
+  gap: 8px;
+}
+
+.env-badge {
+  font-size: 18px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+  cursor: pointer;
+}
+
+/* Water tool highlight */
+#water-tool.is-selected {
+  border-color: #3b9cf2;
+  box-shadow: 0 0 0 2px rgba(59, 156, 242, 0.4);
+}
+
+/* ── SEED PICKER (BOTTOM SHEET) ── */
+.seed-picker-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  display: none;
+  align-items: flex-end;
+}
+
+.seed-picker-modal.is-visible {
+  display: flex;
+}
+
+.seed-picker-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.seed-picker-content {
+  position: relative;
+  width: 100%;
+  background: rgba(18, 28, 24, 0.96);
+  border-top: 1px solid var(--line);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  padding: 16px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  backdrop-filter: blur(20px);
+  z-index: 2;
+  transform: translateY(100%);
+  animation: slideUp 0.28s cubic-bezier(0.1, 0.76, 0.55, 0.94) forwards;
+}
+
+@keyframes slideUp {
+  to { transform: translateY(0); }
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 2px;
+  margin: 0 auto 12px;
+}
+
+.seed-picker-content h3 {
+  margin: 0 0 16px;
+  text-align: center;
+  font-size: 18px;
+  color: var(--accent);
+}
+
+.seed-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.seed-option-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.seed-option-card:active {
+  transform: scale(0.95);
+}
+
+.seed-option-card.insufficient-funds {
+  border-color: rgba(233, 64, 66, 0.35);
+  background: rgba(233, 64, 66, 0.06);
+}
+
+.seed-option-card.insufficient-funds .seed-cost {
+  color: #ff6b6b;
+}
+
+.seed-emoji {
+  font-size: 26px;
+  margin-bottom: 6px;
+}
+
+.seed-name {
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+
+.seed-cost {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.seed-time {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ── DAILY LOGIN MODAL ── */
+.daily-login-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1002;
+  display: none;
+  place-items: center;
+  padding: 24px;
+}
+
+.daily-login-modal.is-visible {
+  display: grid;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+}
+
+.daily-login-content {
+  position: relative;
+  width: min(450px, calc(100vw - 32px));
+  background: rgba(18, 28, 24, 0.95);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  z-index: 2;
+  text-align: center;
+}
+
+.daily-login-content h2 {
+  margin: 0 0 6px;
+  color: var(--accent);
+}
+
+.daily-login-content p {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.daily-days-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.daily-day-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+
+.daily-day-card.claimed {
+  background: rgba(78, 179, 106, 0.08);
+  border-color: rgba(78, 179, 106, 0.4);
+  opacity: 0.65;
+}
+
+.daily-day-card.current {
+  border-color: var(--accent);
+  background: rgba(255, 212, 90, 0.06);
+  transform: scale(1.04);
+}
+
+.daily-day-card.current .day-num {
+  color: var(--accent);
+}
+
+.day-num {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 4px;
+}
+
+.day-icon {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.day-reward {
+  font-size: 9px;
+  font-weight: 700;
+}
+
+/* ── TAB BAR ── */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(64px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: rgba(12, 20, 17, 0.96);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  z-index: 1000;
+  backdrop-filter: blur(20px);
+}
+
+.tab-button {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.18s, transform 0.12s;
+  padding: 4px 0;
+}
+
+.tab-button.active {
+  color: var(--accent);
+}
+
+.tab-icon {
+  font-size: 20px;
+  margin-bottom: 2px;
+}
+
+.tab-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+/* Adjusted bottom-bar position because of tab-bar */
+.bottom-bar {
+  bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Adjust zoom buttons to be slightly higher */
+.control-buttons {
+  gap: 6px;
 }
