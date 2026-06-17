@@ -282,16 +282,71 @@ body.is-scanning .surface-hint {
   animation: floatToast 900ms ease-out forwards;
 }
 
+/* Sidebar Tohum Paneli */
 .bottom-bar {
-  left: 8px;
-  right: 8px;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
+  position: fixed;
+  left: 0;
+  top: 130px;
+  bottom: 110px;
+  width: 86px;
+  z-index: 900;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 160ms ease;
+  transform: translateX(-88px);
+  transition: transform 0.4s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.2s ease;
+}
+
+.bottom-bar.is-open {
+  transform: translateX(8px);
+}
+
+.seed-bar-toggle {
+  position: absolute;
+  right: -26px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 48px;
+  background: rgba(18, 28, 24, 0.9);
+  border: 1px solid var(--line);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 4px 0 10px rgba(0, 0, 0, 0.3);
+  padding: 0;
+}
+
+.seed-bar-toggle:hover {
+  background: rgba(28, 44, 38, 0.92);
+}
+
+.seed-list-container {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  height: 100%;
+  padding: 8px 4px;
+  background: rgba(18, 28, 24, 0.88);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  scrollbar-width: none; /* Firefox */
+}
+
+.seed-list-container::-webkit-scrollbar {
+  display: none; /* Safari/Chrome */
 }
 
 .crop-button,
@@ -315,22 +370,53 @@ body.is-scanning .surface-hint {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 58px;
-  padding: 5px 3px;
+  width: 72px;
+  height: 72px;
+  min-height: 72px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: white;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.crop-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.crop-button.is-selected {
+  border-color: var(--accent);
+  background: rgba(255, 212, 90, 0.15);
+  box-shadow: 0 0 10px rgba(255, 212, 90, 0.25);
+}
+
+.crop-button.seed-locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .crop-title {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 800;
+  text-align: center;
   margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 }
 
 .crop-stats {
-  font-size: 8.5px;
+  font-size: 8px;
   font-weight: 400;
   color: rgba(247, 251, 244, 0.65);
   line-height: 1.15;
   text-align: center;
+  display: block;
 }
 
 .crop-button.is-selected,
@@ -398,7 +484,11 @@ body.is-running .bottom-bar {
 
 .market-content {
   position: relative;
-  width: min(420px, calc(100vw - 32px));
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
   padding: 24px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -436,6 +526,9 @@ body.is-running .bottom-bar {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: auto;
+  flex-grow: 1;
+  padding-right: 4px;
 }
 
 .market-item {
@@ -1166,10 +1259,7 @@ body.is-running .tab-bar {
   letter-spacing: 0.5px;
 }
 
-/* Adjusted bottom-bar position because of tab-bar */
-.bottom-bar {
-  bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
-}
+
 
 /* Adjust zoom buttons to be slightly higher */
 .control-buttons {
@@ -1505,40 +1595,7 @@ body.is-running .tab-bar {
     justify-content: center !important;
   }
 
-  /* Bottom Bar - Scrollable Crop Selection */
-  .bottom-bar {
-    bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    gap: 8px !important;
-    padding: 4px 8px 8px 8px !important;
-    left: 0 !important;
-    right: 0 !important;
-    pointer-events: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-  }
 
-  .bottom-bar::-webkit-scrollbar {
-    display: none !important;
-  }
-
-  .crop-button {
-    flex: 0 0 100px !important;
-    min-height: 52px !important;
-    padding: 4px !important;
-  }
-
-  .crop-title {
-    font-size: 11px !important;
-  }
-
-  .crop-stats {
-    font-size: 8px !important;
-    line-height: 1.1 !important;
-  }
 
   /* Modals - Sizing and Padding */
   .market-modal {

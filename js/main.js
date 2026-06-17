@@ -143,6 +143,18 @@ async function initGame(user, nickname) {
   // UI Yönetimi
   ui = new GameUI(globalStorage);
   window.ui = ui;
+
+  // Tohum barı açıp kapatma (sidebar toggle)
+  const seedBarToggle = document.querySelector("#seed-bar-toggle");
+  const bottomBarElement = document.querySelector(".bottom-bar");
+  if (seedBarToggle && bottomBarElement) {
+    seedBarToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = bottomBarElement.classList.toggle("is-open");
+      seedBarToggle.textContent = isOpen ? "◀" : "▶";
+      if (window.audioSystem) window.audioSystem.playPlace();
+    });
+  }
   
   // Scene Manager (Sahne yönetim sistemi)
   sceneManager = new SceneManager(renderer, globalStorage, farmStorage, barnStorage, marketStorage, bakeryStorage);
@@ -984,6 +996,7 @@ expandConfirmBtn.addEventListener("click", (e) => {
     const success = sceneManager.scenes.farm.farm.expandFarm(nextExpId);
     if (success) {
       ui.showToast(`🏗️ Çiftlik genişletildi: ${nextExp.label}!`);
+      sceneManager.scenes.farm.updateMaxZoomDistance(); // Zoom sınırını güncelle!
       sceneManager.scenes.farm.controls.update(); // Kamera kontrolünü yenile
     }
     

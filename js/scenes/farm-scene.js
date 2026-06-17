@@ -119,6 +119,7 @@ export class FarmScene {
     this.camera.position.set(0, 1.3, 1.8);
     this.camera.lookAt(0, 0.08, 0);
     this.controls.update();
+    this.updateMaxZoomDistance();
 
     this.farm.setPreviewPlacement();
 
@@ -802,6 +803,7 @@ export class FarmScene {
         this.farm.decorationMeshes.push(mesh);
       });
 
+      this.updateMaxZoomDistance();
     } catch (e) {
       console.error("Arkadaş çiftliği yüklenemedi:", e);
     }
@@ -826,6 +828,13 @@ export class FarmScene {
     this.farm.rebuildGrid();
     this.updateStaticMeshesPositions();
     this.checkMailbox();
+    this.updateMaxZoomDistance();
+  }
+
+  updateMaxZoomDistance() {
+    if (!this.controls || !this.farm) return;
+    const maxGridDim = Math.max(this.farm.gridRows || 3, this.farm.gridCols || 3);
+    this.controls.maxDistance = 2.0 + maxGridDim * 0.95;
   }
 
   dispose() {

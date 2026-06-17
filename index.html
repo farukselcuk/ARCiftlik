@@ -316,23 +316,26 @@
 
       <div id="surface-hint" class="surface-hint">Move your phone slowly to find a surface</div>
 
-      <nav class="bottom-bar" aria-label="Crop selection">
-        <button class="crop-button is-selected" type="button" data-crop="wheat">
-          <span class="crop-title">🌾 Wheat</span>
-          <span class="crop-stats">Buy: 10 | Profit: +15<br>Grow: 60s</span>
-        </button>
-        <button class="crop-button" type="button" data-crop="corn">
-          <span class="crop-title">🌽 Corn</span>
-          <span class="crop-stats">Buy: 15 | Profit: +20<br>Grow: 120s</span>
-        </button>
-        <button class="crop-button" type="button" data-crop="strawberry">
-          <span class="crop-title">🍓 Strawberry</span>
-          <span class="crop-stats">Buy: 20 | Profit: +30<br>Grow: 90s</span>
-        </button>
-        <button class="crop-button" type="button" data-crop="sunflower">
-          <span class="crop-title">🌻 Sunflower</span>
-          <span class="crop-stats">Buy: 25 | Profit: +45<br>Grow: 180s</span>
-        </button>
+      <nav class="bottom-bar seed-sidebar" aria-label="Crop selection">
+        <button id="seed-bar-toggle" class="seed-bar-toggle" type="button" aria-label="Toggle seeds">▶</button>
+        <div class="seed-list-container">
+          <button class="crop-button is-selected" type="button" data-crop="wheat">
+            <span class="crop-title">🌾 Wheat</span>
+            <span class="crop-stats">Buy: 10 | Profit: +15<br>Grow: 60s</span>
+          </button>
+          <button class="crop-button" type="button" data-crop="corn">
+            <span class="crop-title">🌽 Corn</span>
+            <span class="crop-stats">Buy: 15 | Profit: +20<br>Grow: 120s</span>
+          </button>
+          <button class="crop-button" type="button" data-crop="strawberry">
+            <span class="crop-title">🍓 Strawberry</span>
+            <span class="crop-stats">Buy: 20 | Profit: +30<br>Grow: 90s</span>
+          </button>
+          <button class="crop-button" type="button" data-crop="sunflower">
+            <span class="crop-title">🌻 Sunflower</span>
+            <span class="crop-stats">Buy: 25 | Profit: +45<br>Grow: 180s</span>
+          </button>
+        </div>
       </nav>
 
       <!-- Çiftlik Genişletme Modalı -->

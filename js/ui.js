@@ -44,7 +44,7 @@ export class GameUI {
   }
 
   renderSeedList(currentPlayerLevel) {
-    const container = document.querySelector(".bottom-bar");
+    const container = document.querySelector(".seed-list-container") || document.querySelector(".bottom-bar");
     if (!container) return;
     container.innerHTML = "";
 
