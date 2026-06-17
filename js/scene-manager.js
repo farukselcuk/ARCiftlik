@@ -48,6 +48,8 @@ export class SceneManager {
         e.preventDefault();
         const sceneKey = tab.dataset.scene;
 
+        if (window.audioSystem) window.audioSystem.playPlace();
+
         // Fırın kilidi kontrolü (Seviye 5)
         if (sceneKey === "bakery") {
           const charLevel = Number(this.globalStorage.loadField("level")) || 1;

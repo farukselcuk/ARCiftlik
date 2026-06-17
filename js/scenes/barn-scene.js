@@ -361,6 +361,7 @@ export class BarnScene {
   interactWithChicken() {
     // Tavuk sesi/toast
     window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🐔 Gıd-gıd-gıdak! Tavuk yumurtlama çarpanı arttı!" } }));
+    if (window.audioSystem) window.audioSystem.playChicken();
     // Tavuk hoplama animasyonu tetikle
     this.jumpAnimation(this.chickenGroup);
     
@@ -370,6 +371,7 @@ export class BarnScene {
 
   interactWithCat() {
     window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🐱 Miyav! Kedi şans eseri gizemli sandık bulma şansını arttırdı." } }));
+    if (window.audioSystem) window.audioSystem.playCat();
     this.jumpAnimation(this.catGroup);
     window.dispatchEvent(new CustomEvent("xp-gain", { detail: { amount: 3, source: "cat" } }));
   }
@@ -395,6 +397,7 @@ export class BarnScene {
       friendshipXP: xp
     });
 
+    if (window.audioSystem) window.audioSystem.playDog();
     this.jumpAnimation(this.shibaGroup);
 
     if (leveledUp) {

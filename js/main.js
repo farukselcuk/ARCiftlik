@@ -701,12 +701,14 @@ const buyPlotBtn = document.querySelector("#buy-plot");
 
 openMarketBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (audioSystem) audioSystem.playPlace();
   updateMarketUI();
   marketPanel.classList.add("is-visible");
 });
 
 closeMarketBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (audioSystem) audioSystem.playPlace();
   marketPanel.classList.remove("is-visible");
 });
 
@@ -717,16 +719,19 @@ const closeWarehouseBtn = document.querySelector("#close-warehouse");
 
 openWarehouseBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (audioSystem) audioSystem.playPlace();
   updateWarehouseUI();
   warehousePanel.classList.add("is-visible");
 });
 
 closeWarehouseBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (audioSystem) audioSystem.playPlace();
   warehousePanel.classList.remove("is-visible");
 });
 
 window.addEventListener("open-warehouse-panel", () => {
+  if (audioSystem) audioSystem.playPlace();
   updateWarehouseUI();
   warehousePanel.classList.add("is-visible");
 });
@@ -743,6 +748,7 @@ buyPlotBtn.addEventListener("click", (e) => {
     ui.updateCoins(-price);
     const success = sceneManager.scenes.farm.farm.unlockPlot();
     if (success) {
+      if (audioSystem) audioSystem.playPlace();
       ui.showToast("Yeni arsa genişletildi!");
       updateMarketUI();
     }
@@ -771,6 +777,7 @@ buyPetBtn.addEventListener("click", (e) => {
     sceneManager.scenes.farm.pet.purchase();
     sceneManager.scenes.barn.shibaGroup.visible = true;
 
+    if (audioSystem) audioSystem.playPlace();
     ui.showToast("Shiba yoldaşınız açıldı! 🐕");
     updateMarketUI();
   } else {
@@ -785,12 +792,14 @@ const closeOrdersBtn = document.querySelector("#close-orders");
 
 openOrdersBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (audioSystem) audioSystem.playPlace();
   updateOrdersUI();
   ordersPanel.classList.add("is-visible");
 });
 
 closeOrdersBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (audioSystem) audioSystem.playPlace();
   ordersPanel.classList.remove("is-visible");
 });
 
@@ -801,11 +810,13 @@ const closeSettingsBtn = document.querySelector("#close-settings");
 
 openSettingsBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (audioSystem) audioSystem.playPlace();
   settingsPanel.classList.add("is-visible");
 });
 
 closeSettingsBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (audioSystem) audioSystem.playPlace();
   settingsPanel.classList.remove("is-visible");
 });
 
@@ -813,6 +824,7 @@ const qualityBtns = document.querySelectorAll(".quality-btn");
 qualityBtns.forEach(btn => {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
+    if (audioSystem) audioSystem.playPlace();
     const quality = btn.dataset.quality;
     Performance.setOverride(quality);
   });
@@ -826,12 +838,14 @@ const expandConfirmBtn = document.querySelector("#expand-confirm-btn");
 
 openExpandBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (audioSystem) audioSystem.playPlace();
   updateExpandUI();
   expandPanel.classList.add("is-visible");
 });
 
 closeExpandBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (audioSystem) audioSystem.playPlace();
   expandPanel.classList.remove("is-visible");
 });
 

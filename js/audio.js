@@ -26,12 +26,23 @@ export class AudioSystem {
     const savedVolume = localStorage.getItem('sound_volume');
     if (savedVolume !== null) this.volume = parseFloat(savedVolume) || 0.7;
 
-    // Kullanıcı etkileşimi olmadan başlatma — ilk tıkta aç
-    document.addEventListener('click', () => {
-      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
-    }, { once: true });
+    // Capturing phase listeners to bypass stopPropagation
+    const resumeHandler = () => {
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch((err) => console.log("AudioContext resume failed:", err));
+      }
+    };
+    window.addEventListener('click', resumeHandler, { capture: true, once: true });
+    window.addEventListener('touchstart', resumeHandler, { capture: true, once: true });
+    window.addEventListener('pointerdown', resumeHandler, { capture: true, once: true });
 
     this._initialized = true;
+  }
+
+  _resumeContext() {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch((err) => console.log("AudioContext resume failed:", err));
+    }
   }
 
   // ── ORTAM SESLERİ (procedural) ──────────────────────────────────
@@ -152,6 +163,7 @@ export class AudioSystem {
 
   /** Ekim sesi — yumuşak "plop" */
   playPlant() {
+    this._resumeContext();
     if (!this.enabled || !this.ctx) return;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -167,6 +179,7 @@ export class AudioSystem {
 
   /** Hasat sesi — neşeli üç tonlu "ding" */
   playHarvest() {
+    this._resumeContext();
     if (!this.enabled || !this.ctx) return;
     [523, 659, 784].forEach((freq, i) => {
       const osc = this.ctx.createOscillator();
@@ -184,6 +197,7 @@ export class AudioSystem {
 
   /** Coin sesi — yükselen bip */
   playCoin() {
+    this._resumeContext();
     if (!this.enabled || !this.ctx) return;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -199,6 +213,7 @@ export class AudioSystem {
 
   /** Gübre uygulama sesi — pozitif "fıs" */
   playFertilize() {
+    this._resumeContext();
     if (!this.enabled || !this.ctx) return;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -215,6 +230,7 @@ export class AudioSystem {
 
   /** Dekorasyon yerleştirme sesi — hafif "tok" */
   playPlace() {
+    this._resumeContext();
     if (!this.enabled || !this.ctx) return;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -227,6 +243,78 @@ export class AudioSystem {
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
     osc.start();
     osc.stop(this.ctx.currentTime + 0.12);
+  }
+
+  /** Tavuk sesi — cluck cluck */
+  playChicken() {
+    this._resumeContext();
+    if (!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    [0, 0.08].forEach((delay) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 1000;
+      
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+      
+      osc.frequency.setValueAtTime(800, now + delay);
+      osc.frequency.exponentialRampToValueAtTime(1400, now + delay + 0.05);
+      
+      gain.gain.setValueAtTime(0.04 * this.volume, now + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.06);
+      
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.06);
+    });
+  }
+
+  /** Kedi sesi — meow */
+  playCat() {
+    this._resumeContext();
+    if (!this.enabled || !this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    
+    const now = this.ctx.currentTime;
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(900, now + 0.15);
+    osc.frequency.exponentialRampToValueAtTime(750, now + 0.35);
+    
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.08 * this.volume, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    
+    osc.start(now);
+    osc.stop(now + 0.4);
+  }
+
+  /** Köpek sesi — bark bark */
+  playDog() {
+    this._resumeContext();
+    if (!this.enabled || !this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    
+    const now = this.ctx.currentTime;
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.linearRampToValueAtTime(100, now + 0.12);
+    
+    gain.gain.setValueAtTime(0.15 * this.volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    
+    osc.start(now);
+    osc.stop(now + 0.15);
   }
 
   // ── ORTAM GÜNCELLEMESİ ─────────────────────────────────────────
