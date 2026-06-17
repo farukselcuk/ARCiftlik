@@ -763,12 +763,27 @@ body.is-running .bottom-bar {
   color: var(--accent);
 }
 
+#orders-list,
 .orders-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: calc(100vh - 160px);
+  scroll-behavior: smooth;
   padding-right: 4px;
+}
+
+#orders-list::-webkit-scrollbar,
+.orders-list::-webkit-scrollbar {
+  display: none;
+}
+
+#orders-list,
+.orders-list {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .order-item {
@@ -779,6 +794,10 @@ body.is-running .bottom-bar {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
+}
+
+.order-item:last-child {
+  margin-bottom: env(safe-area-inset-bottom, 16px);
 }
 
 .order-header {

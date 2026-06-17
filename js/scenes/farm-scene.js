@@ -39,6 +39,7 @@ export class FarmScene {
     this.harvestQueue = [];
     this.queuedPlots = new Set();
     this.dragSeedId = null;
+    this.plantedThisDrag = new Set();
 
     this._inputCleanups = [];
   }
@@ -175,22 +176,49 @@ export class FarmScene {
     const cleanupDrag = Input.onDrag(this.renderer.domElement, {
       onStart: (point) => {
         const plot = this.getPlotAtPoint(point);
+        const ui = window.ui;
+        const activeSeedId = this.dragSeedId || (ui && ui.tool === "crop" ? ui.selectedCrop : null);
+        
         if (plot && this.farm.isEmpty(plot.index)) {
-          // Boş tarlaya tıklandıysa tohum seçiciyi aç
-          window.dispatchEvent(new CustomEvent("open-seed-picker", { detail: { plotIndex: plot.index } }));
-          this.controls.enabled = false; // Sürüklerken kamerayı döndürmeyi durdur
+          if (activeSeedId) {
+            const crop = CROP_TYPES[activeSeedId];
+            if (crop && ui && ui.coins < crop.cost) {
+              this.dragSeedId = null;
+              window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Yeterli altın yok! 🪙" } }));
+              return;
+            }
+            
+            this.dragSeedId = activeSeedId;
+            this.plantedThisDrag.clear();
+            this.plantPlot(plot.index, this.dragSeedId);
+            this.plantedThisDrag.add(plot.index);
+            this.controls.enabled = false; // Sürüklerken kamerayı döndürmeyi durdur
+          } else {
+            // Boş tarlaya tıklandıysa tohum seçiciyi aç
+            window.dispatchEvent(new CustomEvent("open-seed-picker", { detail: { plotIndex: plot.index } }));
+            this.controls.enabled = false;
+          }
         }
       },
       onMove: (point) => {
         if (this.dragSeedId) {
           const plot = this.getPlotAtPoint(point);
-          if (plot && this.farm.isEmpty(plot.index)) {
+          if (plot && this.farm.isEmpty(plot.index) && !this.plantedThisDrag.has(plot.index)) {
+            const ui = window.ui;
+            const crop = CROP_TYPES[this.dragSeedId];
+            if (crop && ui && ui.coins < crop.cost) {
+              this.dragSeedId = null; // Stop dragging if out of coins
+              window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Yeterli altın yok! 🪙" } }));
+              return;
+            }
             this.plantPlot(plot.index, this.dragSeedId);
+            this.plantedThisDrag.add(plot.index);
           }
         }
       },
       onEnd: () => {
         this.dragSeedId = null;
+        this.plantedThisDrag.clear();
         this.controls.enabled = true; // Kamera dönüşünü serbest bırak
       }
     });
@@ -341,6 +369,12 @@ export class FarmScene {
     // Coin kontrolü
     const crop = CROP_TYPES[cropId];
     if (!crop) return false;
+
+    const ui = window.ui;
+    if (ui && ui.coins < crop.cost) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Yeterli altın yok! 🪙" } }));
+      return false;
+    }
 
     // Event üzerinden main'e coin harcaması yaptır
     const event = new CustomEvent("spend-coins", {

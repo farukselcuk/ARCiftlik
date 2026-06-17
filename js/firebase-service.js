@@ -9,6 +9,8 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged 
@@ -59,40 +61,70 @@ export function sanitizeNickname(name) {
 }
 
 /**
- * Initializes Firebase Auth state changes
+ * Loads or creates user profile and empty save doc in Firestore
+ * @param {object} user - Firebase user object
+ * @returns {Promise<string>} User nickname
+ */
+export async function loadOrCreateProfile(user) {
+  const userDocRef = doc(db, "users", user.uid);
+  const userSnap = await getDoc(userDocRef);
+  
+  let nickname;
+  if (userSnap.exists()) {
+    nickname = userSnap.data().nickname;
+  } else {
+    nickname = sanitizeNickname(user.displayName || user.email.split("@")[0]);
+    await setDoc(userDocRef, {
+      userId: user.uid,
+      nickname: nickname,
+      email: user.email,
+      createdAt: new Date()
+    });
+
+    // Create empty save doc
+    await setDoc(doc(db, "saves", user.uid), {
+      updatedAt: new Date()
+    });
+  }
+  return nickname;
+}
+
+/**
+ * Initializes Firebase Auth state changes, handling redirect result first
  * @param {function} onAuthChanged - Callback invoked on auth state change
  */
 export function initFirebase(onAuthChanged) {
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      try {
-        // Fetch user profile to get nickname
-        const userDocRef = doc(db, "users", user.uid);
-        let userSnap = await getDoc(userDocRef);
-        
-        let nickname = "Çiftçi";
-        if (userSnap.exists()) {
-          nickname = userSnap.data().nickname;
-        } else {
-          // Fallback if profile doc was not created
-          nickname = sanitizeNickname(user.displayName || user.email.split("@")[0]);
-          await setDoc(userDocRef, {
-            userId: user.uid,
-            nickname: nickname,
-            email: user.email,
-            createdAt: new Date()
-          });
+  // Check redirect result first (page load after redirect sign in)
+  getRedirectResult(auth)
+    .then(async (result) => {
+      if (result?.user) {
+        console.log("[FirebaseService] Redirect login success:", result.user.email);
+        try {
+          await loadOrCreateProfile(result.user);
+        } catch (e) {
+          console.error("[FirebaseService] Error loading/creating profile after redirect:", e);
         }
-        
-        onAuthChanged(user, nickname);
-      } catch (err) {
-        console.error("[FirebaseService] Error loading user profile on auth change:", err);
-        onAuthChanged(user, "Çiftçi");
       }
-    } else {
-      onAuthChanged(null, null);
-    }
-  });
+    })
+    .catch((err) => {
+      console.error("[FirebaseService] Redirect result error:", err);
+    })
+    .finally(() => {
+      // Set up standard auth state listener
+      onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          try {
+            const nickname = await loadOrCreateProfile(user);
+            onAuthChanged(user, nickname);
+          } catch (err) {
+            console.error("[FirebaseService] Error loading user profile on auth change:", err);
+            onAuthChanged(user, "Çiftçi");
+          }
+        } else {
+          onAuthChanged(null, null);
+        }
+      });
+    });
 }
 
 /**
@@ -131,35 +163,30 @@ export async function signInWithEmail(email, password) {
 }
 
 /**
- * Login/Register with Google
+ * Login/Register with Google (Popup with Redirect fallback)
  */
 export async function signInWithGoogle() {
-  const result = await signInWithPopup(auth, googleProvider);
-  const user = result.user;
-  
-  // Check if profile exists, otherwise create it
-  const userDocRef = doc(db, "users", user.uid);
-  const userSnap = await getDoc(userDocRef);
-  
-  let nickname;
-  if (userSnap.exists()) {
-    nickname = userSnap.data().nickname;
-  } else {
-    nickname = sanitizeNickname(user.displayName || user.email.split("@")[0]);
-    await setDoc(userDocRef, {
-      userId: user.uid,
-      nickname: nickname,
-      email: user.email,
-      createdAt: new Date()
-    });
+  try {
+    // 1. Önce popup dene
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
+    const nickname = await loadOrCreateProfile(user);
+    return { user, nickname };
+  } catch (err) {
+    console.error('[FirebaseService] Google popup hatası:', err.code, err.message);
 
-    // Create empty save doc
-    await setDoc(doc(db, "saves", user.uid), {
-      updatedAt: new Date()
-    });
+    // 2. Popup bloklandıysa redirect'e geç
+    if (
+      err.code === 'auth/popup-blocked' ||
+      err.code === 'auth/cancelled-popup-request' ||
+      err.code === 'auth/popup-closed-by-user'
+    ) {
+      await signInWithRedirect(auth, googleProvider);
+      return; // Sayfa yenilenir
+    }
+
+    throw err;
   }
-
-  return { user, nickname };
 }
 
 /**

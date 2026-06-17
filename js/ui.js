@@ -11,7 +11,6 @@ export class GameUI {
   constructor(storage) {
     this.coinEl = document.querySelector("#coin-count");
     this.toastEl = document.querySelector("#toast");
-    this.cropButtons = [...document.querySelectorAll(".crop-button")];
     this.waterButton = document.querySelector("#water-tool");
     this.selectedCrop = "wheat";
     this.tool = "crop";
@@ -26,19 +25,11 @@ export class GameUI {
     });
 
     this.updateCoins(0);
+    this.renderSeedList(this.loadLevel());
     this.bindControls();
   }
 
   bindControls() {
-    for (const button of this.cropButtons) {
-      button.addEventListener("click", (event) => {
-        event.stopPropagation();
-        this.selectedCrop = button.dataset.crop;
-        this.tool = "crop";
-        this.syncSelection();
-      });
-    }
-
     this.waterButton?.addEventListener("click", (event) => {
       event.stopPropagation();
       this.tool = this.tool === "water" ? "crop" : "water";
@@ -50,6 +41,64 @@ export class GameUI {
       event.stopPropagation();
       this.onReset?.();
     });
+  }
+
+  renderSeedList(currentPlayerLevel) {
+    const container = document.querySelector(".bottom-bar");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const CROP_EMOJIS = {
+      wheat: "🌾",
+      corn: "🌽",
+      carrot: "🥕",
+      strawberry: "🍓",
+      potato: "🥔",
+      sunflower: "🌻",
+      tomato: "🍅",
+      pumpkin: "🎃",
+      blueberry: "🫐"
+    };
+
+    Object.values(CROP_TYPES).forEach((crop) => {
+      const isUnlocked = currentPlayerLevel >= crop.unlockedAt;
+      const el = document.createElement("button");
+      el.className = "crop-button" + (isUnlocked ? "" : " seed-locked");
+      el.type = "button";
+      el.dataset.crop = crop.id;
+
+      const emoji = CROP_EMOJIS[crop.id] || "🌱";
+
+      if (isUnlocked) {
+        el.innerHTML = `
+          <span class="crop-title">${emoji} ${crop.name}</span>
+          <span class="crop-stats">Alış: ${crop.cost} | Kâr: +${crop.reward - crop.cost}<br>Süre: ${crop.growTime / 1000}s</span>
+        `;
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.selectedCrop = crop.id;
+          this.tool = "crop";
+          this.syncSelection();
+        });
+      } else {
+        el.innerHTML = `
+          <span class="crop-title" style="filter: grayscale(1); opacity: 0.4;">${emoji} ${crop.name}</span>
+          <span class="crop-stats" style="opacity: 0.4;">🔒 Seviye ${crop.unlockedAt}</span>
+        `;
+        el.style.pointerEvents = "none";
+        el.style.cursor = "default";
+      }
+
+      container.appendChild(el);
+    });
+
+    this.cropButtons = [...container.querySelectorAll(".crop-button")];
+    this.syncSelection();
+  }
+
+  loadLevel() {
+    const saved = this._storage.loadField("level");
+    return Number(saved) || 1;
   }
 
   syncSelection() {

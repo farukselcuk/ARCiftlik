@@ -102,6 +102,7 @@ async function initGame(user, nickname) {
   
   // UI Yönetimi
   ui = new GameUI(globalStorage);
+  window.ui = ui;
   
   // Scene Manager (Sahne yönetim sistemi)
   sceneManager = new SceneManager(renderer, globalStorage, farmStorage, barnStorage, marketStorage, bakeryStorage);
@@ -226,6 +227,10 @@ function updateXPUI(level, xp, leveledUp) {
   const fillPercent = Math.min(100, (xp / nextLevelXP) * 100);
   document.querySelector("#level-value").textContent = level;
   document.querySelector("#xp-bar-fill").style.width = `${fillPercent}%`;
+  
+  if (ui) {
+    ui.renderSeedList(level);
+  }
   
   // Fırın kilidi görsel senkronizasyonu (Seviye 5)
   const bakeryTab = document.querySelector("#tab-bakery");
@@ -415,6 +420,13 @@ function bindSeedCards() {
         
         // Sürüklemeyi tetiklemek için tohum ID'sini ayarla
         sceneManager.scenes.farm.dragSeedId = cropId;
+        
+        // UI'daki seçimi de güncelle (böylece alttaki barda da seçili kalsın)
+        if (ui) {
+          ui.selectedCrop = cropId;
+          ui.tool = "crop";
+          ui.syncSelection();
+        }
         
         seedPicker.classList.remove("is-visible");
         activePlotIndexForPlanting = null;

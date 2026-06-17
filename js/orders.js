@@ -10,17 +10,31 @@ export class Orders {
   constructor(storage) {
     /** @type {GameStorage} */
     this._storage = storage;
-    this.list = this.load();
-    if (this.list.length === 0) {
-      this.list = this.generateAll();
-      this.save();
+    const playerLevel = Number(this._storage.loadField("level")) || 1;
+    
+    let loaded = this.load();
+    loaded = this.validateExistingOrders(loaded, playerLevel);
+    
+    const orderIds = ["order-1", "order-2", "order-3"];
+    const newList = [];
+    
+    for (const id of orderIds) {
+      const existing = loaded.find((o) => o.id === id);
+      if (existing) {
+        newList.push(existing);
+      } else {
+        newList.push(this.generateOrder(id, playerLevel));
+      }
     }
+    
+    this.list = newList;
+    this.save();
   }
 
   load() {
     try {
       const saved = this._storage.loadField("orders");
-      if (Array.isArray(saved) && saved.length === 3) return saved;
+      if (Array.isArray(saved)) return saved;
     } catch {}
     return [];
   }
@@ -29,20 +43,21 @@ export class Orders {
     this._storage.saveField("orders", this.list);
   }
 
-  generateAll() {
-    return [
-      this.generateOrder("order-1"),
-      this.generateOrder("order-2"),
-      this.generateOrder("order-3")
-    ];
-  }
-
-  generateOrder(id) {
+  generateOrder(id, playerLevel = 1) {
+    const lvl = Math.max(1, Number(playerLevel) || 1);
     const villager = VILLAGERS[Math.floor(Math.random() * VILLAGERS.length)];
-    const cropKeys = Object.keys(CROP_TYPES);
+    
+    // Sadece açık olan ürünleri listele
+    const availableCrops = Object.values(CROP_TYPES).filter(
+      (crop) => lvl >= crop.unlockedAt
+    );
+    
+    const cropKeys = availableCrops.length > 0 
+      ? availableCrops.map((c) => c.id) 
+      : ["wheat", "corn"];
     
     // Choose 1 or 2 different crop requirements
-    const count = Math.random() > 0.65 ? 2 : 1;
+    const count = Math.random() > 0.65 && cropKeys.length > 1 ? 2 : 1;
     const reqs = [];
     const chosenCrops = new Set();
 
@@ -72,6 +87,20 @@ export class Orders {
     return { id, villager, reqs, reward };
   }
 
+  validateExistingOrders(orders, playerLevel) {
+    const lvl = Math.max(1, Number(playerLevel) || 1);
+    if (!Array.isArray(orders)) return [];
+    return orders.filter((order) => {
+      if (!order || !Array.isArray(order.reqs)) return false;
+      return order.reqs.every((req) => {
+        const crop = CROP_TYPES[req.cropId];
+        if (!crop) return false;
+        if (lvl < crop.unlockedAt) return false;
+        return true;
+      });
+    });
+  }
+
   canFulfill(orderId, inventory) {
     const order = this.list.find((o) => o.id === orderId);
     if (!order) return false;
@@ -91,7 +120,8 @@ export class Orders {
     }
 
     // Replace order
-    const newOrder = this.generateOrder(orderId);
+    const playerLevel = Number(this._storage.loadField("level")) || 1;
+    const newOrder = this.generateOrder(orderId, playerLevel);
     this.list[index] = newOrder;
     this.save();
 
@@ -99,7 +129,12 @@ export class Orders {
   }
 
   reset() {
-    this.list = this.generateAll();
+    const playerLevel = Number(this._storage.loadField("level")) || 1;
+    this.list = [
+      this.generateOrder("order-1", playerLevel),
+      this.generateOrder("order-2", playerLevel),
+      this.generateOrder("order-3", playerLevel)
+    ];
     this.save();
   }
 }
