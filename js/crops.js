@@ -99,7 +99,8 @@ export const CROP_TYPES = {
     reward: 0,
     readyColor: 0x2e5c1e,
     unlockedAt: 3,
-    seasons: ["all"]
+    seasons: ["all"],
+    isTree: true
   },
   pine_tree: {
     id: "pine_tree",
@@ -109,7 +110,8 @@ export const CROP_TYPES = {
     reward: 0,
     readyColor: 0x1d3c1f,
     unlockedAt: 4,
-    seasons: ["all"]
+    seasons: ["all"],
+    isTree: true
   }
 };
 

@@ -121,28 +121,45 @@ export class AudioSystem {
     delete this.sources.rain;
   }
 
-  /** Rüzgar sesi — sawtooth + bandpass */
+  /** Rüzgar sesi — white noise + LFO ile modüle edilmiş lowpass filtre (Cızırtı giderildi) */
   startWind(intensity = 0.15) {
     if (!this.enabled || !this.ctx || this.sources.wind) return;
 
-    const osc = this.ctx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.value = 80;
+    const bufferSize = this.ctx.sampleRate * 2;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
 
     const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 200;
-    filter.Q.value = 0.5;
+    filter.type = 'lowpass';
+    filter.frequency.value = 300; // base frequency
+    
+    // LFO for wind gust effect
+    const lfo = this.ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.15; // slow modulation
+    
+    const lfoGain = this.ctx.createGain();
+    lfoGain.gain.value = 200; // modulation depth
+    
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
 
     const gain = this.ctx.createGain();
     gain.gain.value = intensity * this.volume;
 
-    osc.connect(filter);
+    source.connect(filter);
     filter.connect(gain);
     gain.connect(this.ctx.destination);
-    osc.start();
+    
+    source.start();
+    lfo.start();
 
-    this.sources.wind = { osc, gain };
+    this.sources.wind = { source, lfo, gain };
   }
 
   stopWind() {
@@ -153,10 +170,58 @@ export class AudioSystem {
       );
       const windRef = this.sources.wind;
       setTimeout(() => {
-        try { windRef.osc.stop(); } catch {}
+        try { 
+          windRef.source.stop(); 
+          windRef.lfo.stop();
+        } catch {}
       }, 1500);
     } catch {}
     delete this.sources.wind;
+  }
+
+  // ── MÜZİK (BGM) ─────────────────────────────────────────────────
+
+  /** Arkaplan müziği - Prosedürel pentatonik melodi */
+  startBGM() {
+    if (!this.enabled || !this.ctx || this.sources.bgm) return;
+    
+    // C Pentatonik Dizi (Do, Re, Mi, Sol, La) + oktav
+    const scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
+    
+    const playNextNote = () => {
+      if (!this.sources.bgm || !this.ctx) return;
+      
+      const freq = scale[Math.floor(Math.random() * scale.length)];
+      
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      
+      const gain = this.ctx.createGain();
+      
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      
+      const now = this.ctx.currentTime;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.04 * this.volume, now + 1.0); // yavaşça gir
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 4.0); // yavaşça sönümle
+      
+      osc.start(now);
+      osc.stop(now + 4.0);
+      
+      this.sources.bgm.timer = setTimeout(playNextNote, 2000 + Math.random() * 3000);
+    };
+    
+    this.sources.bgm = { active: true };
+    playNextNote();
+  }
+
+  stopBGM() {
+    if (this.sources.bgm) {
+      clearTimeout(this.sources.bgm.timer);
+      delete this.sources.bgm;
+    }
   }
 
   // ── OYUN SES EFEKTLERİ ─────────────────────────────────────────
@@ -347,6 +412,10 @@ export class AudioSystem {
 
     if (!this.enabled) return;
 
+    if (!this.sources.bgm) {
+      this.startBGM(); // Müziği başlat
+    }
+
     if (weather === 'sunny')  { this.startBirds(); }
     if (weather === 'cloudy') { this.startBirds(); this.startWind(0.08); }
     if (weather === 'rainy')  { this.startRain(0.25); this.startWind(0.1); }
@@ -362,6 +431,10 @@ export class AudioSystem {
       this.stopBirds();
       this.stopRain();
       this.stopWind();
+      this.stopBGM();
+    } else {
+      // Eğer weather var ise, updateAmbience çağrılacak (veya BGM direkt başlayacak)
+      this.startBGM();
     }
     localStorage.setItem('sound_enabled', this.enabled);
     return this.enabled;

@@ -47,9 +47,9 @@ export class Orders {
     const lvl = Math.max(1, Number(playerLevel) || 1);
     const villager = VILLAGERS[Math.floor(Math.random() * VILLAGERS.length)];
     
-    // Sadece açık olan ürünleri listele
+    // Sadece açık olan ve ağaç OLMAYAN ürünleri listele
     const availableCrops = Object.values(CROP_TYPES).filter(
-      (crop) => lvl >= crop.unlockedAt
+      (crop) => lvl >= crop.unlockedAt && !crop.isTree
     );
     
     const cropKeys = availableCrops.length > 0 
@@ -94,7 +94,7 @@ export class Orders {
       if (!order || !Array.isArray(order.reqs)) return false;
       return order.reqs.every((req) => {
         const crop = CROP_TYPES[req.cropId];
-        if (!crop) return false;
+        if (!crop || crop.isTree) return false;
         if (lvl < crop.unlockedAt) return false;
         return true;
       });

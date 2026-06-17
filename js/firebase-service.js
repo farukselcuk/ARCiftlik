@@ -24,8 +24,12 @@ import {
   query, 
   orderBy, 
   limit, 
-  getDocs 
+  getDocs,
+  onSnapshot
 } from "firebase/firestore";
+
+export { doc, getDoc };
+
 
 // ── Firebase Configuration ─────────────────────────────────────────
 // REPLACE this configuration with your Firebase Project credentials.
@@ -311,5 +315,25 @@ export function initSyncListener() {
         console.error("[FirebaseSync] Error syncing game state to Firestore:", err);
       }
     }, 2000); // 2-second debounce
+  });
+}
+
+/**
+ * Initializes a real-time listener on the user's save document to capture
+ * remote changes (like purchases from the trading post by other players).
+ * @param {function} onRemoteUpdate - Callback invoked when remote changes are detected
+ */
+export function initRealtimeSaveListener(onRemoteUpdate) {
+  const user = auth.currentUser;
+  if (!user) return null;
+
+  const docRef = doc(db, "saves", user.uid);
+  return onSnapshot(docRef, (docSnap) => {
+    // Ignore updates that are driven by local writes
+    if (docSnap.metadata.hasPendingWrites) return;
+
+    if (docSnap.exists()) {
+      onRemoteUpdate(docSnap.data());
+    }
   });
 }
