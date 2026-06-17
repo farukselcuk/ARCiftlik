@@ -89,6 +89,7 @@ export class Farm {
     base.rotation.x = -Math.PI / 2;
     base.position.y = -0.004;
     base.receiveShadow = true;
+    base.name = "farm-base";
     this.group.add(base);
 
     for (let row = 0; row < this.gridRows; row += 1) {
@@ -99,6 +100,8 @@ export class Farm {
 
         const plotGroup = new THREE.Group();
         plotGroup.position.set(x, 0, z);
+        plotGroup.name = "plot-group";
+        plotGroup.userData.plotIndex = index;
 
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(PLOT_SIZE, PLOT_SIZE), dirtMaterial);
         mesh.rotation.x = -Math.PI / 2;
@@ -729,7 +732,12 @@ export class Farm {
     const specialChildren = [];
     this.group.children.forEach(c => {
       // Keep character, pet, chests, fireflies, and static meshes (mailbox, trading post)
-      if (c !== this.group && !c.userData.hasOwnProperty("plotIndex") && !c.userData.hasOwnProperty("decorationIndex") && c.name !== "lock-mesh") {
+      const isPlotGroup = c.userData.hasOwnProperty("plotIndex") || c.name === "plot-group";
+      const isDecoration = c.userData.hasOwnProperty("decorationIndex") || c.name === "decoration-mesh";
+      const isLock = c.name === "lock-mesh";
+      const isBase = c.name === "farm-base";
+
+      if (c !== this.group && !isPlotGroup && !isDecoration && !isLock && !isBase) {
         specialChildren.push(c);
       }
     });

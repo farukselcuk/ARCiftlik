@@ -750,6 +750,9 @@ export class FarmScene {
       this.updateStaticMeshesPositions();
       if (this.mailboxGroup) this.mailboxGroup.visible = false;
 
+      // Önce tüm tarlaları temizle (kendi tarlamızdan kalan bitkileri sil)
+      this.farm.plots.forEach(plot => this.farm.clearPlot(plot));
+
       // Arkadaşın bitkilerini yerleştir
       plotsData.forEach((saved, index) => {
         if (!saved || !this.farm.plots[index]) return;
@@ -770,7 +773,26 @@ export class FarmScene {
       this.farm.decorations = decosData;
 
       decosData.forEach((deco, index) => {
-        const mesh = createDecorationMesh(deco.id);
+        let stage = deco.stage || 1;
+        let hasFruit = deco.hasFruit || false;
+        const isSapling = (deco.id === 'oak_sapling' || deco.id === 'pine_sapling' || deco.id === 'apple_sapling' || deco.id === 'orange_sapling');
+        
+        if (isSapling) {
+          const growTime = (deco.id === 'oak_sapling') ? 240000 : ((deco.id === 'pine_sapling') ? 360000 : 300000);
+          const elapsed = Date.now() - (deco.plantedAt || Date.now());
+          const progress = Math.min(1, elapsed / growTime);
+          stage = progress >= 1 ? 3 : (progress >= 0.5 ? 2 : 1);
+          deco.stage = stage;
+          
+          if (stage === 3 && (deco.id === 'apple_sapling' || deco.id === 'orange_sapling')) {
+            if (deco.hasFruit === undefined) {
+              deco.hasFruit = true;
+            }
+            hasFruit = deco.hasFruit;
+          }
+        }
+
+        const mesh = createDecorationMesh(deco.id, stage, hasFruit);
         mesh.rotation.y = deco.rotation || 0;
         const pos = this.farm.getDecorationPosition(deco.col, deco.row);
         mesh.position.copy(pos);
