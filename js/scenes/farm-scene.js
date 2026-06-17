@@ -121,6 +121,11 @@ export class FarmScene {
     this.controls.update();
 
     this.farm.setPreviewPlacement();
+
+    // Create Mailbox & Trading Post
+    this.createMailbox();
+    this.createTradingPost();
+    this.updateStaticMeshesPositions();
   }
 
   setupFireflies() {
@@ -162,6 +167,8 @@ export class FarmScene {
 
     // Arka plan rengini güncelle
     document.body.className = "is-running no-camera has-farm day-time";
+
+    this.checkMailbox();
   }
 
   pause() {
@@ -258,17 +265,35 @@ export class FarmScene {
   }
 
   handleTapAt(point) {
-    if (this.isReadOnly) {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğindesiniz. Sadece izleyebilirsiniz!" } }));
-      return;
-    }
-
     const rect = this.renderer.domElement.getBoundingClientRect();
     const mouse = new THREE.Vector2(
       (point.x / rect.width) * 2 - 1,
       -(point.y / rect.height) * 2 + 1
     );
     this.raycaster.setFromCamera(mouse, this.camera);
+
+    // 1b. Ticaret postasına tıklandı mı? (Ziyaretçiler ve sahipler tıklayabilir)
+    if (this.tradingPostGroup) {
+      const tradingPostHits = this.raycaster.intersectObjects(this.tradingPostGroup.children, true);
+      if (tradingPostHits.length > 0) {
+        window.dispatchEvent(new CustomEvent("trading-post-clicked"));
+        return;
+      }
+    }
+
+    if (this.isReadOnly) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğindesiniz. Sadece izleyebilirsiniz!" } }));
+      return;
+    }
+
+    // 1a. Posta kutusuna tıklandı mı?
+    if (this.mailboxGroup && this.mailboxGroup.visible) {
+      const mailboxHits = this.raycaster.intersectObjects(this.mailboxGroup.children, true);
+      if (mailboxHits.length > 0) {
+        window.dispatchEvent(new CustomEvent("mailbox-clicked"));
+        return;
+      }
+    }
 
     // 0. Düzenleme modu tıklamaları
     if (this.editMode && this.indicatorsGroup) {
@@ -345,6 +370,23 @@ export class FarmScene {
       return;
     }
 
+    // 2.5 Dekorasyonlara tıklandı mı?
+    const decoHits = this.raycaster.intersectObjects(this.farm.decorationMeshes, true);
+    if (decoHits.length > 0) {
+      let clickedMesh = decoHits[0].object;
+      while (clickedMesh && !clickedMesh.userData.hasOwnProperty("decorationIndex")) {
+        clickedMesh = clickedMesh.parent;
+      }
+      if (clickedMesh) {
+        const decoIndex = clickedMesh.userData.decorationIndex;
+        const deco = this.farm.decorations[decoIndex];
+        if (deco && (deco.id === "oak_sapling" || deco.id === "pine_sapling" || deco.id === "apple_sapling" || deco.id === "orange_sapling")) {
+          this.interactWithTree(decoIndex);
+          return;
+        }
+      }
+    }
+
     // 3. Tarla tıklandı mı?
     const hits = this.raycaster.intersectObjects(this.farm.getPlotMeshes(), false);
     if (hits.length > 0) {
@@ -387,6 +429,90 @@ export class FarmScene {
       window.dispatchEvent(new CustomEvent("pet-level-up", { detail: { level: this.pet.friendshipLevel } }));
     } else {
       window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🐕 Shiba'yı sevdin! Dostluk +10 XP (${this.pet.friendshipXP}/${nextLevelXP})` } }));
+    }
+  }
+
+  async interactWithTree(decoIndex) {
+    if (this.character.busy) return;
+
+    const deco = this.farm.decorations[decoIndex];
+    if (!deco) return;
+
+    const isFruitTree = (deco.id === "apple_sapling" || deco.id === "orange_sapling");
+    const growTime = (deco.id === "oak_sapling") ? 240000 : ((deco.id === "pine_sapling") ? 360000 : 300000);
+    const elapsed = Date.now() - (deco.plantedAt || Date.now());
+    const progress = Math.min(1, elapsed / growTime);
+    const isReady = progress >= 1;
+
+    const name = deco.id === "oak_sapling" ? "Meşe Fidanı" :
+                 deco.id === "pine_sapling" ? "Çam Fidanı" :
+                 deco.id === "apple_sapling" ? "Elma Fidanı" : "Portakal Fidanı";
+
+    if (!isReady) {
+      const percent = Math.round(progress * 100);
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🌳 ${name} %${percent} büyüdü. Büyümesi bekleniyor...` } }));
+      return;
+    }
+
+    this.character.busy = true;
+    const targetPos = this.farm.getDecorationPosition(deco.col, deco.row);
+    targetPos.z += 0.08;
+
+    try {
+      await this.character.walkTo(targetPos);
+      this.character.group.lookAt(targetPos.x, 0, targetPos.z - 0.08);
+
+      if (isFruitTree) {
+        if (deco.hasFruit) {
+          if (window.audioSystem) window.audioSystem.playHarvest();
+          await this.character.playHarvest();
+
+          const count = Math.floor(Math.random() * 3) + 3; // 3 to 5 fruits
+          const fruitType = deco.id === "apple_sapling" ? "apple" : "orange";
+          
+          if (window.inventory) {
+            window.inventory.add(fruitType, count);
+          }
+
+          deco.hasFruit = false;
+          deco.lastHarvestedAt = Date.now();
+          this.farm.refreshDecorationMesh(decoIndex, 3, false);
+          this.farm.saveDecorations();
+
+          window.dispatchEvent(new CustomEvent("xp-gain", { detail: { amount: 8, source: "harvest_fruit" } }));
+          window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🍎 ${count} adet ${fruitType === "apple" ? "Elma" : "Portakal"} topladın!` } }));
+
+          if (window.updateWarehouseUI) window.updateWarehouseUI();
+        } else {
+          const fruitCooldown = 60000;
+          const timeElapsed = Date.now() - (deco.lastHarvestedAt || Date.now());
+          const remainingSec = Math.max(0, Math.round((fruitCooldown - timeElapsed) / 1000));
+          window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🌳 Ağacın tekrar meyve vermesine ${remainingSec} saniye var.` } }));
+        }
+      } else {
+        if (window.audioSystem) window.audioSystem.playChop();
+        await this.character.playHarvest();
+
+        const isOak = deco.id === "oak_sapling";
+        const itemType = isOak ? "wood_oak" : "wood_pine";
+        const woodCount = Math.floor(Math.random() * 3) + 3;
+
+        this.farm.removeDecorationAt(deco.col, deco.row);
+
+        if (window.inventory) {
+          window.inventory.add(itemType, woodCount);
+        }
+
+        window.dispatchEvent(new CustomEvent("xp-gain", { detail: { amount: 15, source: "chop_tree" } }));
+        window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🪓 ${woodCount} adet ${isOak ? "Meşe Odunu" : "Çam Odunu"} elde ettin!` } }));
+
+        if (window.updateWarehouseUI) window.updateWarehouseUI();
+        if (window.updateOrdersUI) window.updateOrdersUI();
+      }
+    } catch (err) {
+      console.error("Tree interaction failed:", err);
+    } finally {
+      this.character.busy = false;
     }
   }
 
@@ -621,6 +747,8 @@ export class FarmScene {
 
       // Çiftlik gridini arkadaşa göre inşa et
       this.farm.rebuildGrid();
+      this.updateStaticMeshesPositions();
+      if (this.mailboxGroup) this.mailboxGroup.visible = false;
 
       // Arkadaşın bitkilerini yerleştir
       plotsData.forEach((saved, index) => {
@@ -673,6 +801,8 @@ export class FarmScene {
     this.farm.unlockedPlotsCount = this.farm.loadUnlockedPlotsCount();
 
     this.farm.rebuildGrid();
+    this.updateStaticMeshesPositions();
+    this.checkMailbox();
   }
 
   dispose() {
@@ -739,6 +869,134 @@ export class FarmScene {
           ff.position.z = ff.userData.baseZ + Math.cos(timeSec + ff.userData.seedZ) * 0.08;
         });
       }
+    }
+  }
+
+  createMailbox() {
+    this.mailboxGroup = new THREE.Group();
+    this.mailboxGroup.name = "mailbox";
+
+    // Wood post
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 });
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.14, 8), postMat);
+    post.position.y = 0.07;
+    post.castShadow = true;
+    post.receiveShadow = true;
+    this.mailboxGroup.add(post);
+
+    // Box body
+    const boxMat = new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.5 });
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 0.07), boxMat);
+    box.position.y = 0.15;
+    box.castShadow = true;
+    this.mailboxGroup.add(box);
+
+    // Flag
+    const flagMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, roughness: 0.4 });
+    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.025, 0.008), flagMat);
+    flag.position.set(0.027, 0.165, 0.01);
+    this.mailboxGroup.add(flag);
+
+    // Glow effect when gifts are waiting
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffdd55, transparent: true, opacity: 0.5 });
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), glowMat);
+    glow.position.y = 0.15;
+    glow.name = "mailbox-glow";
+    glow.visible = false;
+    this.mailboxGroup.add(glow);
+
+    this.farm.group.add(this.mailboxGroup);
+  }
+
+  createTradingPost() {
+    this.tradingPostGroup = new THREE.Group();
+    this.tradingPostGroup.name = "trading_post";
+
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8b5e3c, roughness: 0.8 });
+    const clothMat1 = new THREE.MeshStandardMaterial({ color: 0xe74c3c, roughness: 0.7 }); // red
+    const clothMat2 = new THREE.MeshStandardMaterial({ color: 0xecf0f1, roughness: 0.7 }); // white
+
+    // Stall Counter / Table
+    const counter = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.08), woodMat);
+    counter.position.y = 0.05;
+    counter.castShadow = true;
+    counter.receiveShadow = true;
+    this.tradingPostGroup.add(counter);
+
+    // Support Pillars
+    const pillar1 = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 8), woodMat);
+    pillar1.position.set(-0.05, 0.11, -0.03);
+    pillar1.castShadow = true;
+    this.tradingPostGroup.add(pillar1);
+
+    const pillar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 8), woodMat);
+    pillar2.position.set(0.05, 0.11, -0.03);
+    pillar2.castShadow = true;
+    this.tradingPostGroup.add(pillar2);
+
+    // Canopy (Stripe roof)
+    const canopyGroup = new THREE.Group();
+    canopyGroup.position.y = 0.18;
+    
+    // Create red and white canopy stripes
+    for (let i = 0; i < 5; i++) {
+      const mat = (i % 2 === 0) ? clothMat1 : clothMat2;
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.012, 0.1), mat);
+      stripe.position.x = -0.052 + i * 0.026;
+      stripe.rotation.x = 0.15; // slightly sloped
+      stripe.castShadow = true;
+      canopyGroup.add(stripe);
+    }
+    this.tradingPostGroup.add(canopyGroup);
+
+    // Sign Board
+    const signBoardMat = new THREE.MeshStandardMaterial({ color: 0xd2b48c, roughness: 0.9 });
+    const signBoard = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.025, 0.01), signBoardMat);
+    signBoard.position.set(0, 0.05, 0.042);
+    signBoard.castShadow = true;
+    this.tradingPostGroup.add(signBoard);
+
+    // Little fruit basket on counter
+    const basketMat = new THREE.MeshStandardMaterial({ color: 0xcd853f });
+    const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.012, 0.012, 8), basketMat);
+    basket.position.set(-0.025, 0.08, 0);
+    this.tradingPostGroup.add(basket);
+
+    const appleMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
+    const apple = new THREE.Mesh(new THREE.SphereGeometry(0.006, 6, 4), appleMat);
+    apple.position.set(-0.025, 0.088, 0);
+    this.tradingPostGroup.add(apple);
+
+    this.farm.group.add(this.tradingPostGroup);
+  }
+
+  updateStaticMeshesPositions() {
+    const totalW = this.farm.gridCols * 0.28 + (this.farm.gridCols - 1) * 0.035;
+    const totalH = this.farm.gridRows * 0.28 + (this.farm.gridRows - 1) * 0.035;
+    
+    if (this.mailboxGroup) {
+      this.mailboxGroup.position.set(-totalW / 2 - 0.08, 0, totalH / 2 + 0.08);
+    }
+    if (this.tradingPostGroup) {
+      this.tradingPostGroup.position.set(totalW / 2 + 0.08, 0, totalH / 2 + 0.08);
+    }
+  }
+
+  async checkMailbox() {
+    if (this.isReadOnly || !window.socialSystem) {
+      if (this.mailboxGroup) this.mailboxGroup.visible = false;
+      return;
+    }
+    try {
+      const gifts = await window.socialSystem.getIncomingGifts();
+      const hasGifts = gifts && gifts.length > 0;
+      if (this.mailboxGroup) {
+        this.mailboxGroup.visible = hasGifts;
+        const glow = this.mailboxGroup.getObjectByName("mailbox-glow");
+        if (glow) glow.visible = hasGifts;
+      }
+    } catch (err) {
+      console.error("Error checking mailbox:", err);
     }
   }
 

@@ -256,4 +256,114 @@ export class SocialSystem {
       senderName: doc.data().senderName
     }));
   }
+
+  // ── P2P TİCARET POSTASI METOTLARI ─────────────────────────────────
+
+  /**
+   * Oyuncunun ticaret postasında eşya listeler.
+   */
+  listShopItem(itemType, amount, price) {
+    if (!this.myUid) throw new Error("Oturum açık değil!");
+    if (amount <= 0 || price <= 0) throw new Error("Miktar ve fiyat sıfırdan büyük olmalıdır!");
+
+    const currentStock = this.inventory.getCount(itemType);
+    if (currentStock < amount) {
+      throw new Error("Envanterinizde yeterli miktarda ürün yok!");
+    }
+
+    // Envanterden düş
+    if (this.inventory.deduct(itemType, amount)) {
+      const shopItems = this.globalStorage.loadField("shopItems") || [];
+      const itemId = Math.random().toString(36).substring(2, 9);
+      shopItems.push({
+        id: itemId,
+        itemType: itemType,
+        amount: amount,
+        price: price
+      });
+      this.globalStorage.saveField("shopItems", shopItems);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Listelenen eşyayı iptal eder, envantere geri ekler.
+   */
+  removeShopItem(itemId) {
+    if (!this.myUid) throw new Error("Oturum açık değil!");
+    
+    const shopItems = this.globalStorage.loadField("shopItems") || [];
+    const idx = shopItems.findIndex(item => item.id === itemId);
+    if (idx === -1) throw new Error("Eşya bulunamadı!");
+
+    const item = shopItems[idx];
+    this.inventory.add(item.itemType, item.amount);
+    shopItems.splice(idx, 1);
+    this.globalStorage.saveField("shopItems", shopItems);
+    return true;
+  }
+
+  /**
+   * Arkadaşın ticaret postasındaki eşyayı satın alır.
+   * Arkadaşın pendingGold değerini artırır.
+   */
+  async buyShopItem(friendUid, itemId) {
+    if (!this.myUid) throw new Error("Oturum açık değil!");
+    if (friendUid === this.myUid) throw new Error("Kendi tezgahınızdan satın alamazsınız!");
+
+    const friendSaveRef = doc(db, "saves", friendUid);
+    const snap = await getDoc(friendSaveRef);
+    if (!snap.exists()) throw new Error("Arkadaş çiftliği verisi bulunamadı!");
+
+    const data = snap.data();
+    const globalStateKey = "arciftlik:global:state";
+    if (!data[globalStateKey]) throw new Error("Arkadaş mağaza verisi bulunamadı!");
+
+    let friendGlobalState = JSON.parse(data[globalStateKey]);
+    const friendShopItems = friendGlobalState.shopItems || [];
+    const idx = friendShopItems.findIndex(item => item.id === itemId);
+    if (idx === -1) throw new Error("Bu ürün satılmış veya kaldırılmış!");
+
+    const item = friendShopItems[idx];
+
+    // Para kontrolü
+    const myCoins = this.globalStorage.loadField("coins") || 0;
+    if (myCoins < item.price) {
+      throw new Error("Yetersiz Altın!");
+    }
+
+    // Alıcının parasını düş, envanterini artır
+    this.globalStorage.saveField("coins", myCoins - item.price);
+    this.inventory.add(item.itemType, item.amount);
+
+    // Arkadaşın tezgahından ürünü çıkar, pendingGold ekle
+    friendShopItems.splice(idx, 1);
+    friendGlobalState.shopItems = friendShopItems;
+    friendGlobalState.pendingGold = (friendGlobalState.pendingGold || 0) + item.price;
+
+    // Arkadaşın belgesini güncelle
+    await updateDoc(friendSaveRef, {
+      [globalStateKey]: JSON.stringify(friendGlobalState),
+      updatedAt: new Date()
+    });
+
+    return item;
+  }
+
+  /**
+   * Satışlardan biriken altınları toplayıp oyuncu hesabına aktarır.
+   */
+  claimPendingGold() {
+    if (!this.myUid) return 0;
+
+    const pending = this.globalStorage.loadField("pendingGold") || 0;
+    if (pending > 0) {
+      const myCoins = this.globalStorage.loadField("coins") || 0;
+      this.globalStorage.saveField("coins", myCoins + pending);
+      this.globalStorage.saveField("pendingGold", 0);
+      return pending;
+    }
+    return 0;
+  }
 }

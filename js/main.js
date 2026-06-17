@@ -147,6 +147,9 @@ async function initGame(user, nickname) {
   // Scene Manager (Sahne yönetim sistemi)
   sceneManager = new SceneManager(renderer, globalStorage, farmStorage, barnStorage, marketStorage, bakeryStorage);
   sceneManager.initAll();
+
+  // Fırın Atölyesi ilklendirmesi
+  initBakeryUI();
   
   // Karakter Seviye / XP UI Senkronizasyonu
   character = sceneManager.scenes.farm.character; // Karakter referansı
@@ -203,6 +206,18 @@ async function initGame(user, nickname) {
   // Firestore Arkaplan Senkronizasyonunu Başlat
   firebaseService.initSyncListener();
   
+  // Satışlardan gelen ve toplanmayı bekleyen altınları kontrol et
+  const pending = globalStorage.loadField("pendingGold") || 0;
+  if (pending > 0) {
+    const coins = globalStorage.loadField("coins") || 0;
+    globalStorage.saveField("coins", coins + pending);
+    globalStorage.saveField("pendingGold", 0);
+    setTimeout(() => {
+      ui.showToast(`🎉 Çevrimdışı satışlardan ${pending} Altın toplandı! 💰`);
+      if (audioSystem) audioSystem.playCoin();
+    }, 2500);
+  }
+
   // Yükleme bitti, karşılama ekranını göster
   document.querySelector("#auth-loading").style.display = "none";
   document.querySelector("#welcome-panel").style.display = "flex";
@@ -281,10 +296,10 @@ function updateXPUI(level, xp, leveledUp) {
     ui.renderSeedList(level);
   }
   
-  // Fırın kilidi görsel senkronizasyonu (Seviye 5)
+  // Fırın kilidi görsel senkronizasyonu (Seviye 3)
   const bakeryTab = document.querySelector("#tab-bakery");
   if (bakeryTab) {
-    if (level >= 5) {
+    if (level >= 3) {
       bakeryTab.style.opacity = "1";
       bakeryTab.querySelector(".tab-icon").textContent = "🍞";
     } else {
@@ -359,9 +374,22 @@ window.addEventListener("crop-harvested", (e) => {
   const { cropId, name, isGolden } = e.detail;
   const harvestBonus = seasonSystem.getHarvestBonus();
   
-  if (audioSystem) audioSystem.playHarvest();
+  if (audioSystem) {
+    if (cropId === "oak_tree" || cropId === "pine_tree") {
+      audioSystem.playChop();
+    } else {
+      audioSystem.playHarvest();
+    }
+  }
 
-  if (isGolden) {
+  if (cropId === "oak_tree" || cropId === "pine_tree") {
+    const isOak = cropId === "oak_tree";
+    const itemType = isOak ? "wood_oak" : "wood_pine";
+    const woodCount = Math.floor(Math.random() * 3) + 3; // 3 to 5
+    inventory.add(itemType, woodCount);
+    ui.showToast(`${woodCount} adet ${isOak ? "Meşe Odunu" : "Çam Odunu"} elde ettin! 🪓`);
+    character.addXP(12, "chop_tree");
+  } else if (isGolden) {
     inventory.add(`golden_${cropId}`, 1);
     ui.showToast(`✨ ALTIN ${name.toUpperCase()} HASAT EDİLDİ! (10x Fiyat) ✨`);
     character.addXP(15, "harvest_golden");
@@ -398,7 +426,9 @@ const CROP_EMOJIS = {
   sunflower: "🌻",
   tomato: "🍅",
   pumpkin: "🎃",
-  blueberry: "🫐"
+  blueberry: "🫐",
+  oak_tree: "🌳",
+  pine_tree: "🌲"
 };
 
 // Tohum Seçim Bottom Sheet Entegrasyonu
@@ -412,6 +442,7 @@ function populateSeedPicker() {
   container.innerHTML = "";
 
   Object.values(CROP_TYPES).forEach(crop => {
+    if (crop.id === "oak_tree" || crop.id === "pine_tree") return; // Tarlaya ağaç ekilmesini engelle
     const card = document.createElement("button");
     card.className = "seed-option-card";
     card.dataset.crop = crop.id;
@@ -998,7 +1029,7 @@ function updateWarehouseUI() {
     const goldenId = `golden_${cropId}`;
     const count = inventory.getCount(goldenId);
     if (count <= 0) return;
-
+ 
     const goldenPrice = CROP_TYPES[cropId].reward * 10;
     const itemEl = document.createElement("div");
     itemEl.className = "sell-item sell-item-golden";
@@ -1021,6 +1052,86 @@ function updateWarehouseUI() {
         character.addXP(10, "sell_golden");
         updateWarehouseUI();
         updateOrdersUI();
+      }
+    });
+  });
+
+  // Ormancılık ve Mobilya Satışları
+  const FORESTRY_ITEMS = {
+    wood_oak: { name: "🪵 Meşe Odunu", price: 10 },
+    wood_pine: { name: "🪵 Çam Odunu", price: 15 },
+    apple: { name: "🍎 Elma", price: 25 },
+    orange: { name: "🍊 Portakal", price: 30 },
+    furniture_stool: { name: "🪑 Ahşap Tabure", price: 120 },
+    furniture_table: { name: "☕ Ahşap Sehpa", price: 260 },
+    furniture_cabinet: { name: "🚪 Ahşap Dolap", price: 580 }
+  };
+
+  Object.keys(FORESTRY_ITEMS).forEach((itemId) => {
+    const count = inventory.getCount(itemId);
+    if (count <= 0) return;
+    const price = FORESTRY_ITEMS[itemId].price;
+    const name = FORESTRY_ITEMS[itemId].name;
+    
+    const itemEl = document.createElement("div");
+    itemEl.className = "sell-item";
+    itemEl.innerHTML = `
+      <div class="sell-info">
+        <span class="sell-name">${name}</span>
+        <span class="sell-count">Stok: ${count}</span>
+      </div>
+      <button class="sell-button" type="button">
+        Sat: ${price} 🪙
+      </button>
+    `;
+    sellListEl.appendChild(itemEl);
+    
+    itemEl.querySelector(".sell-button").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (inventory.deduct(itemId, 1)) {
+        ui.updateCoins(price);
+        ui.showToast(`1 adet ${name} satıldı!`);
+        character.addXP(itemId.startsWith("furniture_") ? 15 : 2, "sell_wood_furniture");
+        updateWarehouseUI();
+      }
+    });
+  });
+
+  // Fırın Ürünleri Satışları
+  const BAKERY_SELL_ITEMS = {
+    flour: { name: "📦 Paketli Un", price: 15 },
+    bread: { name: "🍞 Taze Ekmek", price: 35 },
+    strawberry_cake: { name: "🍰 Çilekli Kek", price: 80 },
+    blueberry_pie: { name: "🥧 Mavi Yemiş Turtası", price: 120 },
+    carrot_cake: { name: "🧁 Havuçlu Kek", price: 55 }
+  };
+
+  Object.keys(BAKERY_SELL_ITEMS).forEach((itemId) => {
+    const count = inventory.getCount(itemId);
+    if (count <= 0) return;
+    const price = BAKERY_SELL_ITEMS[itemId].price;
+    const name = BAKERY_SELL_ITEMS[itemId].name;
+    
+    const itemEl = document.createElement("div");
+    itemEl.className = "sell-item sell-item-bakery";
+    itemEl.innerHTML = `
+      <div class="sell-info">
+        <span class="sell-name">${name}</span>
+        <span class="sell-count">Stok: ${count}</span>
+      </div>
+      <button class="sell-button" type="button" style="background: #e67e22;">
+        Sat: ${price} 🪙
+      </button>
+    `;
+    sellListEl.appendChild(itemEl);
+    
+    itemEl.querySelector(".sell-button").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (inventory.deduct(itemId, 1)) {
+        ui.updateCoins(price);
+        ui.showToast(`1 adet ${name} satıldı!`);
+        character.addXP(8, "sell_bakery");
+        updateWarehouseUI();
       }
     });
   });
@@ -1178,7 +1289,8 @@ if (openDecorationsBtn && decorationsModal) {
 
 function updateDecorationsUI() {
   const DECORATION_COSTS = {
-    fence: 50, lantern: 100, bench: 150, well: 500, flower_bed: 80, scarecrow: 200, stone_path: 30
+    fence: 50, lantern: 100, bench: 150, well: 500, flower_bed: 80, scarecrow: 200, stone_path: 30,
+    oak_sapling: 120, pine_sapling: 150, apple_sapling: 200, orange_sapling: 220
   };
   
   document.querySelectorAll(".buy-deco-btn").forEach(btn => {
@@ -1227,7 +1339,10 @@ document.querySelectorAll(".buy-deco-btn").forEach(btn => {
     if (type === "remove_tool") {
       ui.showToast("Kaldırma aleti aktif: Kaldırmak istediğiniz süslemeye dokunun.");
     } else {
-      const names = { fence: "Ahşap Çit", lantern: "Bahçe Feneri", bench: "Ahşap Bank", well: "Taş Kuyu", flower_bed: "Çiçek Tarhı", scarecrow: "Korkuluk", stone_path: "Taş Yol" };
+      const names = {
+        fence: "Ahşap Çit", lantern: "Bahçe Feneri", bench: "Ahşap Bank", well: "Taş Kuyu", flower_bed: "Çiçek Tarhı", scarecrow: "Korkuluk", stone_path: "Taş Yol",
+        oak_sapling: "Meşe Fidanı", pine_sapling: "Çam Fidanı", apple_sapling: "Elma Fidanı", orange_sapling: "Portakal Fidanı"
+      };
       ui.showToast(`Düzenleme modu aktif: ${names[type]} yerleştirmek için yeşil alanlara dokunun. Mevcut süslemeleri döndürmek için üstlerine dokunun.`);
     }
   });
@@ -1520,6 +1635,9 @@ function render() {
   weatherSystem.update(realNow);
   seasonSystem.update(realNow);
   sceneManager.update(dt, realNow);
+  if (typeof updateBakeryUI === "function") {
+    updateBakeryUI();
+  }
 
   sceneManager.render();
   requestAnimationFrame(render);
@@ -1716,5 +1834,626 @@ firebaseService.initFirebase((user, nickname) => {
     if (started) {
       window.location.reload();
     }
+  }
+});
+
+// ── MARANGOZ ATÖLYESİ & TİCARET POSTASI UI ENTEGRASYONU ─────────────
+
+const openCarpenterBtn = document.querySelector("#open-carpenter-btn");
+const closeCarpenterBtn = document.querySelector("#close-carpenter");
+const carpenterModal = document.querySelector("#carpenter-modal");
+
+if (openCarpenterBtn && carpenterModal) {
+  openCarpenterBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    carpenterModal.classList.add("is-visible");
+    updateCarpenterUI();
+  });
+}
+
+if (closeCarpenterBtn && carpenterModal) {
+  closeCarpenterBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    carpenterModal.classList.remove("is-visible");
+  });
+}
+
+function updateCarpenterUI() {
+  const oakCount = inventory.getCount("wood_oak");
+  const pineCount = inventory.getCount("wood_pine");
+
+  const oakCountEl = document.querySelector("#carpenter-oak-count");
+  const pineCountEl = document.querySelector("#carpenter-pine-count");
+  if (oakCountEl) oakCountEl.textContent = oakCount;
+  if (pineCountEl) pineCountEl.textContent = pineCount;
+
+  const craftStoolBtn = document.querySelector("#craft-stool-btn");
+  if (craftStoolBtn) {
+    craftStoolBtn.disabled = oakCount < 4;
+  }
+
+  const craftTableBtn = document.querySelector("#craft-table-btn");
+  if (craftTableBtn) {
+    craftTableBtn.disabled = pineCount < 6;
+  }
+
+  const craftCabinetBtn = document.querySelector("#craft-cabinet-btn");
+  if (craftCabinetBtn) {
+    craftCabinetBtn.disabled = oakCount < 10 || pineCount < 5;
+  }
+}
+
+// Bind craft buttons
+const craftStoolBtn = document.querySelector("#craft-stool-btn");
+if (craftStoolBtn) {
+  craftStoolBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (inventory.deduct("wood_oak", 4)) {
+      inventory.add("furniture_stool", 1);
+      ui.showToast("Ahşap Tabure üretildi! 🪑");
+      if (audioSystem) audioSystem.playPlace();
+      updateCarpenterUI();
+      updateWarehouseUI();
+    }
+  });
+}
+
+const craftTableBtn = document.querySelector("#craft-table-btn");
+if (craftTableBtn) {
+  craftTableBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (inventory.deduct("wood_pine", 6)) {
+      inventory.add("furniture_table", 1);
+      ui.showToast("Ahşap Sehpa üretildi! ☕");
+      if (audioSystem) audioSystem.playPlace();
+      updateCarpenterUI();
+      updateWarehouseUI();
+    }
+  });
+}
+
+const craftCabinetBtn = document.querySelector("#craft-cabinet-btn");
+if (craftCabinetBtn) {
+  craftCabinetBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (inventory.has("wood_oak", 10) && inventory.has("wood_pine", 5)) {
+      inventory.deduct("wood_oak", 10);
+      inventory.deduct("wood_pine", 5);
+      inventory.add("furniture_cabinet", 1);
+      ui.showToast("Ahşap Dolap üretildi! 🚪");
+      if (audioSystem) audioSystem.playPlace();
+      updateCarpenterUI();
+      updateWarehouseUI();
+    }
+  });
+}
+
+// Posta Kutusu Tıklama
+window.addEventListener("mailbox-clicked", async () => {
+  try {
+    const claimed = await socialSystem.claimGifts();
+    if (claimed && claimed.length > 0) {
+      let coinsAdded = 0;
+      const fertAdded = { fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0 };
+      
+      claimed.forEach(gift => {
+        if (gift.type === "coins_50") {
+          coinsAdded += 50;
+        } else if (fertAdded[gift.type] !== undefined) {
+          fertAdded[gift.type] += 1;
+        }
+      });
+      
+      const parts = [];
+      if (coinsAdded > 0) {
+        ui.updateCoins(coinsAdded);
+        parts.push(`🪙 ${coinsAdded} Altın`);
+      }
+      Object.keys(fertAdded).forEach(k => {
+        if (fertAdded[k] > 0) {
+          inventory.add(k, fertAdded[k]);
+          const names = { fertilizer_basic: "Basit Gübre", fertilizer_super: "Süper Gübre", fertilizer_golden: "Altın Gübre" };
+          parts.push(`${fertAdded[k]} adet ${names[k]}`);
+        }
+      });
+      
+      ui.showToast(`🎁 Posta kutusundan gelen hediyeler alındı! ${parts.join(", ")}`);
+      if (audioSystem) audioSystem.playCoin();
+      updateWarehouseUI();
+      
+      // Update mailbox visibility in scene
+      if (sceneManager && sceneManager.scenes.farm) {
+        sceneManager.scenes.farm.checkMailbox();
+      }
+    }
+  } catch (err) {
+    console.error("Mailbox claim error:", err);
+    ui.showToast("Hediyeler alınırken hata oluştu.");
+  }
+});
+
+// Ticaret Postası Tıklama
+window.addEventListener("trading-post-clicked", () => {
+  openTradingPostUI();
+});
+
+const tradingPostModal = document.querySelector("#trading-post-modal");
+const closeTradingPostBtn = document.querySelector("#close-trading-post");
+const tradingPostTitle = document.querySelector("#trading-post-title");
+const tradingPostDesc = document.querySelector("#trading-post-desc");
+const tradingPostOwnerView = document.querySelector("#trading-post-owner-view");
+const pendingGoldValue = document.querySelector("#pending-gold-value");
+const claimGoldBtn = document.querySelector("#claim-gold-btn");
+const tradeListItemType = document.querySelector("#trade-list-item-type");
+const tradeListAmount = document.querySelector("#trade-list-amount");
+const tradeListPrice = document.querySelector("#trade-list-price");
+const tradeListBtn = document.querySelector("#trade-list-btn");
+const tradingPostItemsList = document.querySelector("#trading-post-items-list");
+const tradingPostItemsHeader = document.querySelector("#trading-post-items-header");
+
+if (closeTradingPostBtn && tradingPostModal) {
+  closeTradingPostBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    tradingPostModal.classList.remove("is-visible");
+  });
+}
+
+async function openTradingPostUI() {
+  if (!tradingPostModal || !socialSystem) return;
+  tradingPostModal.classList.add("is-visible");
+
+  const farmScene = sceneManager.scenes.farm;
+  const isVisiting = farmScene.isReadOnly;
+
+  if (isVisiting) {
+    tradingPostOwnerView.style.display = "none";
+    const friendName = visitOverlay ? visitOverlay.dataset.friendName : "Arkadaş";
+    tradingPostTitle.textContent = `🏪 ${friendName}'in Tezgahı`;
+    tradingPostDesc.textContent = "Arkadaşınızın satışa çıkardığı ürünleri satın alabilirsiniz.";
+    tradingPostItemsHeader.textContent = "Satıştaki Ürünler";
+    
+    await updateTradingPostItems(visitOverlay.dataset.friendUid);
+  } else {
+    tradingPostOwnerView.style.display = "flex";
+    tradingPostTitle.textContent = "🏪 Ticaret Postası";
+    tradingPostDesc.textContent = "Kendi ekinlerinizi veya gübrelerinizi satabilir, biriken altınlarınızı toplayabilirsiniz.";
+    tradingPostItemsHeader.textContent = "Kendi Tezgahınız";
+
+    const pending = globalStorage.loadField("pendingGold") || 0;
+    pendingGoldValue.textContent = pending;
+    claimGoldBtn.disabled = pending <= 0;
+
+    populateTradeItemSelect();
+    await updateTradingPostItems(socialSystem.myUid);
+  }
+}
+
+function populateTradeItemSelect() {
+  if (!tradeListItemType) return;
+  tradeListItemType.innerHTML = "";
+
+  const options = [];
+
+  // Standard crops
+  Object.keys(CROP_TYPES).forEach(k => {
+    const count = inventory.getCount(k);
+    if (count > 0) {
+      options.push({ id: k, name: `${CROP_EMOJIS[k] || "🌱"} ${CROP_TYPES[k].name} (Stok: ${count})` });
+    }
+    const gKey = `golden_${k}`;
+    const gCount = inventory.getCount(gKey);
+    if (gCount > 0) {
+      options.push({ id: gKey, name: `✨ Altın ${CROP_TYPES[k].name} (Stok: ${gCount})` });
+    }
+  });
+
+  // Fertilizers
+  const ferts = {
+    fertilizer_basic: "🧪 Basit Gübre",
+    fertilizer_super: "🧪⚡ Süper Gübre",
+    fertilizer_golden: "✨🧪 Altın Gübre"
+  };
+  Object.keys(ferts).forEach(k => {
+    const count = inventory.getCount(k);
+    if (count > 0) {
+      options.push({ id: k, name: `${ferts[k]} (Stok: ${count})` });
+    }
+  });
+
+  // Woods and Furniture
+  const forestry = {
+    wood_oak: "🪵 Meşe Odunu",
+    wood_pine: "🪵 Çam Odunu",
+    furniture_stool: "🪑 Ahşap Tabure",
+    furniture_table: "☕ Ahşap Sehpa",
+    furniture_cabinet: "🚪 Ahşap Dolap"
+  };
+  Object.keys(forestry).forEach(k => {
+    const count = inventory.getCount(k);
+    if (count > 0) {
+      options.push({ id: k, name: `${forestry[k]} (Stok: ${count})` });
+    }
+  });
+
+  // Bakery products
+  const bakeryProducts = {
+    flour: "📦 Paketli Un",
+    bread: "🍞 Taze Ekmek",
+    strawberry_cake: "🍰 Çilekli Kek",
+    blueberry_pie: "🥧 Mavi Yemiş Turtası",
+    carrot_cake: "🧁 Havuçlu Kek"
+  };
+  Object.keys(bakeryProducts).forEach(k => {
+    const count = inventory.getCount(k);
+    if (count > 0) {
+      options.push({ id: k, name: `${bakeryProducts[k]} (Stok: ${count})` });
+    }
+  });
+
+  if (options.length === 0) {
+    tradeListItemType.innerHTML = `<option value="">Satacak ürün yok!</option>`;
+    tradeListBtn.disabled = true;
+  } else {
+    options.forEach(opt => {
+      const el = document.createElement("option");
+      el.value = opt.id;
+      el.textContent = opt.name;
+      tradeListItemType.appendChild(el);
+    });
+    tradeListBtn.disabled = false;
+  }
+}
+
+async function updateTradingPostItems(uid) {
+  if (!tradingPostItemsList) return;
+  tradingPostItemsList.innerHTML = `<div style="text-align: center; padding: 15px; color: rgba(255,255,255,0.5);">Yükleniyor...</div>`;
+
+  let items = [];
+  const isOwner = uid === socialSystem.myUid;
+
+  try {
+    if (isOwner) {
+      items = globalStorage.loadField("shopItems") || [];
+    } else {
+      const friendSaveRef = firebaseService.doc(firebaseService.db, "saves", uid);
+      const snap = await firebaseService.getDoc(friendSaveRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const globalStateKey = "arciftlik:global:state";
+        if (data[globalStateKey]) {
+          const state = JSON.parse(data[globalStateKey]);
+          items = state.shopItems || [];
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Trading post items load error:", err);
+    tradingPostItemsList.innerHTML = `<div style="text-align: center; padding: 15px; color: #ff6b6b;">Hata oluştu!</div>`;
+    return;
+  }
+
+  tradingPostItemsList.innerHTML = "";
+
+  if (items.length === 0) {
+    tradingPostItemsList.innerHTML = `<div style="text-align: center; padding: 15px; color: rgba(255,255,255,0.5);">Tezgahta ürün bulunmuyor.</div>`;
+    return;
+  }
+
+  const itemNames = {
+    fertilizer_basic: "🧪 Basit Gübre",
+    fertilizer_super: "🧪⚡ Süper Gübre",
+    fertilizer_golden: "✨🧪 Altın Gübre",
+    wood_oak: "🪵 Meşe Odunu",
+    wood_pine: "🪵 Çam Odunu",
+    furniture_stool: "🪑 Ahşap Tabure",
+    furniture_table: "☕ Ahşap Sehpa",
+    furniture_cabinet: "🚪 Ahşap Dolap",
+    flour: "📦 Paketli Un",
+    bread: "🍞 Taze Ekmek",
+    strawberry_cake: "🍰 Çilekli Kek",
+    blueberry_pie: "🥧 Mavi Yemiş Turtası",
+    carrot_cake: "🧁 Havuçlu Kek"
+  };
+
+  items.forEach((item) => {
+    let displayName = itemNames[item.itemType];
+    if (!displayName) {
+      if (item.itemType.startsWith("golden_")) {
+        const base = item.itemType.replace("golden_", "");
+        displayName = `✨ Altın ${CROP_TYPES[base]?.name || base}`;
+      } else {
+        displayName = `${CROP_EMOJIS[item.itemType] || "🌱"} ${CROP_TYPES[item.itemType]?.name || item.itemType}`;
+      }
+    }
+
+    const itemEl = document.createElement("div");
+    itemEl.className = "sell-item";
+    itemEl.innerHTML = `
+      <div class="sell-info">
+        <span class="sell-name">${displayName}</span>
+        <span class="sell-count">Adet: ${item.amount}</span>
+      </div>
+      <button class="sell-button trade-action-btn" type="button">
+        ${isOwner ? "İptal Et" : `Satın Al: ${item.price} 🪙`}
+      </button>
+    `;
+    tradingPostItemsList.appendChild(itemEl);
+
+    const actionBtn = itemEl.querySelector(".trade-action-btn");
+    actionBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      actionBtn.disabled = true;
+
+      if (isOwner) {
+        try {
+          socialSystem.removeShopItem(item.id);
+          ui.showToast("Ürün tezgahtan kaldırıldı ve depoya eklendi.");
+          populateTradeItemSelect();
+          updateWarehouseUI();
+          await updateTradingPostItems(uid);
+        } catch (err) {
+          ui.showToast(err.message);
+          actionBtn.disabled = false;
+        }
+      } else {
+        try {
+          const purchased = await socialSystem.buyShopItem(uid, item.id);
+          ui.showToast(`1 adet ${displayName} satın alındı!`);
+          if (audioSystem) audioSystem.playCoin();
+          
+          ui.updateCoins(0); // sync local UI
+          updateWarehouseUI();
+          await updateTradingPostItems(uid);
+        } catch (err) {
+          ui.showToast(err.message);
+          actionBtn.disabled = false;
+        }
+      }
+    });
+  });
+}
+
+if (tradeListBtn) {
+  tradeListBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const type = tradeListItemType.value;
+    const amount = parseInt(tradeListAmount.value) || 0;
+    const price = parseInt(tradeListPrice.value) || 0;
+
+    if (!type) {
+      ui.showToast("Lütfen bir ürün seçin.");
+      return;
+    }
+    if (amount <= 0 || price <= 0) {
+      ui.showToast("Miktar ve fiyat sıfırdan büyük olmalıdır.");
+      return;
+    }
+
+    try {
+      const success = socialSystem.listShopItem(type, amount, price);
+      if (success) {
+        ui.showToast(`${amount} adet ürün satışa çıkarıldı.`);
+        tradeListAmount.value = "";
+        tradeListPrice.value = "";
+        populateTradeItemSelect();
+        updateWarehouseUI();
+        updateTradingPostItems(socialSystem.myUid);
+      }
+    } catch (err) {
+      ui.showToast(err.message);
+    }
+  });
+}
+
+if (claimGoldBtn) {
+  claimGoldBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    try {
+      const claimed = socialSystem.claimPendingGold();
+      if (claimed > 0) {
+        ui.showToast(`🎉 Satışlardan biriken ${claimed} Altın toplandı!`);
+        if (audioSystem) audioSystem.playCoin();
+        ui.updateCoins(0); // sync UI
+        pendingGoldValue.textContent = "0";
+        claimGoldBtn.disabled = true;
+      }
+    } catch (err) {
+      ui.showToast(err.message);
+    }
+  });
+}
+
+// ── FIRIN ATÖLYESİ VE ÜRETİM LİMİTLERİ ──────────────────────────
+const BAKERY_RECIPES = {
+  flour: {
+    id: "flour",
+    name: "Paketli Un",
+    duration: 15000,
+    reqs: { wheat: 2 },
+    rewardXP: 10,
+    emoji: "📦"
+  },
+  bread: {
+    id: "bread",
+    name: "Taze Ekmek",
+    duration: 30000,
+    reqs: { flour: 2 },
+    rewardXP: 20,
+    emoji: "🍞"
+  },
+  strawberry_cake: {
+    id: "strawberry_cake",
+    name: "Çilekli Kek",
+    duration: 60000,
+    reqs: { flour: 2, strawberry: 4 },
+    rewardXP: 45,
+    emoji: "🍰"
+  },
+  blueberry_pie: {
+    id: "blueberry_pie",
+    name: "Mavi Yemiş Turtası",
+    duration: 90000,
+    reqs: { flour: 2, blueberry: 4 },
+    rewardXP: 65,
+    emoji: "🥧"
+  },
+  carrot_cake: {
+    id: "carrot_cake",
+    name: "Havuçlu Kek",
+    duration: 45000,
+    reqs: { flour: 2, carrot: 4 },
+    rewardXP: 30,
+    emoji: "🧁"
+  }
+};
+
+let bakeryState = {
+  activeRecipe: null,
+  startTime: 0,
+  duration: 0,
+  isReady: false
+};
+
+function loadBakeryState() {
+  const saved = bakeryStorage.loadField("state");
+  if (saved && typeof saved === "object") {
+    bakeryState = {
+      activeRecipe: saved.activeRecipe || null,
+      startTime: Number(saved.startTime) || 0,
+      duration: Number(saved.duration) || 0,
+      isReady: Boolean(saved.isReady)
+    };
+  }
+}
+
+function saveBakeryState() {
+  bakeryStorage.saveField("state", bakeryState);
+}
+
+function initBakeryUI() {
+  loadBakeryState();
+
+  const bakeBtns = document.querySelectorAll(".bakery-bake-btn");
+  bakeBtns.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const recipeId = btn.dataset.recipe;
+      bakeRecipe(recipeId);
+    });
+  });
+
+  const collectBtn = document.querySelector("#bakery-collect-btn");
+  if (collectBtn) {
+    collectBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      collectBakedItem();
+    });
+  }
+
+  updateBakeryUI();
+}
+
+function bakeRecipe(recipeId) {
+  if (bakeryState.activeRecipe) {
+    ui.showToast("❌ Fırında şu an başka bir ürün pişiyor!");
+    return;
+  }
+
+  const recipe = BAKERY_RECIPES[recipeId];
+  if (!recipe) return;
+
+  const canBake = Object.keys(recipe.reqs).every(itemId => {
+    const reqAmount = recipe.reqs[itemId];
+    return inventory.has(itemId, reqAmount);
+  });
+
+  if (!canBake) {
+    ui.showToast("❌ Yetersiz malzeme!");
+    return;
+  }
+
+  Object.keys(recipe.reqs).forEach(itemId => {
+    const reqAmount = recipe.reqs[itemId];
+    inventory.deduct(itemId, reqAmount);
+  });
+
+  bakeryState.activeRecipe = recipeId;
+  bakeryState.startTime = Date.now();
+  bakeryState.duration = recipe.duration;
+  bakeryState.isReady = false;
+
+  saveBakeryState();
+  updateBakeryUI();
+  updateWarehouseUI();
+
+  if (audioSystem) audioSystem.playPlace();
+  ui.showToast(`🔥 ${recipe.name} pişirilmeye başlandı!`);
+}
+
+function collectBakedItem() {
+  if (!bakeryState.activeRecipe || !bakeryState.isReady) return;
+
+  const recipe = BAKERY_RECIPES[bakeryState.activeRecipe];
+  if (!recipe) return;
+
+  inventory.add(bakeryState.activeRecipe, 1);
+  character.addXP(recipe.rewardXP, "bake");
+
+  ui.showToast(`🧺 1 adet taze ${recipe.name} aldın!`);
+  if (audioSystem) audioSystem.playHarvest();
+
+  bakeryState.activeRecipe = null;
+  bakeryState.startTime = 0;
+  bakeryState.duration = 0;
+  bakeryState.isReady = false;
+
+  saveBakeryState();
+  updateBakeryUI();
+  updateWarehouseUI();
+}
+
+function updateBakeryUI() {
+  const statusEl = document.querySelector("#bakery-slot-status");
+  const progressContainer = document.querySelector("#bakery-progress-container");
+  const progressBar = document.querySelector("#bakery-progress-bar");
+  const collectBtn = document.querySelector("#bakery-collect-btn");
+
+  if (!statusEl || !progressContainer || !progressBar || !collectBtn) return;
+
+  if (!bakeryState.activeRecipe) {
+    statusEl.textContent = "Fırın Boş 🧊";
+    progressContainer.style.display = "none";
+    collectBtn.style.display = "none";
+  } else {
+    const recipe = BAKERY_RECIPES[bakeryState.activeRecipe];
+    if (bakeryState.isReady) {
+      statusEl.textContent = `🎉 ${recipe.emoji} ${recipe.name} Hazır!`;
+      progressContainer.style.display = "none";
+      collectBtn.style.display = "block";
+    } else {
+      const elapsed = Date.now() - bakeryState.startTime;
+      const progress = Math.min(1, elapsed / bakeryState.duration);
+      const remainingSec = Math.max(0, Math.round((bakeryState.duration - elapsed) / 1000));
+      
+      statusEl.textContent = `🔥 ${recipe.emoji} ${recipe.name} Pişiyor (${remainingSec}s)`;
+      progressContainer.style.display = "block";
+      progressBar.style.width = `${progress * 100}%`;
+      collectBtn.style.display = "none";
+
+      if (progress >= 1) {
+        bakeryState.isReady = true;
+        saveBakeryState();
+        updateBakeryUI();
+      }
+    }
+  }
+}
+
+// Sahne değiştiğinde panel görünürlük kontrolü
+document.addEventListener("scene-changed", (e) => {
+  const scene = e.detail.scene;
+  const bakeryPanel = document.querySelector("#bakery-panel");
+  if (bakeryPanel) {
+    bakeryPanel.style.display = scene === "bakery" ? "block" : "none";
   }
 });

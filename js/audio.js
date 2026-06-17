@@ -195,6 +195,23 @@ export class AudioSystem {
     });
   }
 
+  /** Balta sesi — ağaç kesme */
+  playChop() {
+    this._resumeContext();
+    if (!this.enabled || !this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.18 * this.volume, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.15);
+  }
+
   /** Coin sesi — yükselen bip */
   playCoin() {
     this._resumeContext();

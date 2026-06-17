@@ -53,8 +53,8 @@ export class SceneManager {
         // Fırın kilidi kontrolü (Seviye 5)
         if (sceneKey === "bakery") {
           const charLevel = Number(this.globalStorage.loadField("level")) || 1;
-          if (charLevel < 5) {
-            window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🍞 Fırın Üretim Zinciri Seviye 5'te açılır!" } }));
+          if (charLevel < 3) {
+            window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🍞 Fırın Üretim Zinciri Seviye 3'te açılır!" } }));
             return;
           }
         }

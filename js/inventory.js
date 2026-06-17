@@ -26,6 +26,8 @@ export class Inventory {
           tomato: Number(saved.tomato) || 0,
           pumpkin: Number(saved.pumpkin) || 0,
           blueberry: Number(saved.blueberry) || 0,
+          apple: Number(saved.apple) || 0,
+          orange: Number(saved.orange) || 0,
           
           golden_wheat: Number(saved.golden_wheat) || 0,
           golden_corn: Number(saved.golden_corn) || 0,
@@ -39,14 +41,29 @@ export class Inventory {
 
           fertilizer_basic: Number(saved.fertilizer_basic) || 0,
           fertilizer_super: Number(saved.fertilizer_super) || 0,
-          fertilizer_golden: Number(saved.fertilizer_golden) || 0
+          fertilizer_golden: Number(saved.fertilizer_golden) || 0,
+
+          wood_oak: Number(saved.wood_oak) || 0,
+          wood_pine: Number(saved.wood_pine) || 0,
+          furniture_stool: Number(saved.furniture_stool) || 0,
+          furniture_table: Number(saved.furniture_table) || 0,
+          furniture_cabinet: Number(saved.furniture_cabinet) || 0,
+          flour: Number(saved.flour) || 0,
+          bread: Number(saved.bread) || 0,
+          strawberry_cake: Number(saved.strawberry_cake) || 0,
+          blueberry_pie: Number(saved.blueberry_pie) || 0,
+          carrot_cake: Number(saved.carrot_cake) || 0
         };
       }
     } catch {}
     return {
       wheat: 0, corn: 0, carrot: 0, strawberry: 0, potato: 0, sunflower: 0, tomato: 0, pumpkin: 0, blueberry: 0,
+      apple: 0, orange: 0,
       golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0,
-      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0
+      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0,
+      wood_oak: 0, wood_pine: 0,
+      furniture_stool: 0, furniture_table: 0, furniture_cabinet: 0,
+      flour: 0, bread: 0, strawberry_cake: 0, blueberry_pie: 0, carrot_cake: 0
     };
   }
 
@@ -82,8 +99,12 @@ export class Inventory {
   reset() {
     this.items = {
       wheat: 0, corn: 0, carrot: 0, strawberry: 0, potato: 0, sunflower: 0, tomato: 0, pumpkin: 0, blueberry: 0,
+      apple: 0, orange: 0,
       golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0,
-      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0
+      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0,
+      wood_oak: 0, wood_pine: 0,
+      furniture_stool: 0, furniture_table: 0, furniture_cabinet: 0,
+      flour: 0, bread: 0, strawberry_cake: 0, blueberry_pie: 0, carrot_cake: 0
     };
     this.save();
   }

@@ -90,6 +90,26 @@ export const CROP_TYPES = {
     readyColor: 0x4a90d9,
     unlockedAt: 9,
     seasons: ["summer"]
+  },
+  oak_tree: {
+    id: "oak_tree",
+    name: "Meşe Ağacı",
+    growTime: 240_000,
+    cost: 40,
+    reward: 0,
+    readyColor: 0x2e5c1e,
+    unlockedAt: 3,
+    seasons: ["all"]
+  },
+  pine_tree: {
+    id: "pine_tree",
+    name: "Çam Ağacı",
+    growTime: 360_000,
+    cost: 60,
+    reward: 0,
+    readyColor: 0x1d3c1f,
+    unlockedAt: 4,
+    seasons: ["all"]
   }
 };
 
@@ -120,7 +140,10 @@ const materials = {
   potato: new THREE.MeshStandardMaterial({ color: CROP_TYPES.potato.readyColor, roughness: 0.85 }),
   tomato: new THREE.MeshStandardMaterial({ color: CROP_TYPES.tomato.readyColor, roughness: 0.6 }),
   pumpkin: new THREE.MeshStandardMaterial({ color: CROP_TYPES.pumpkin.readyColor, roughness: 0.72 }),
-  blueberry: new THREE.MeshStandardMaterial({ color: CROP_TYPES.blueberry.readyColor, roughness: 0.68 })
+  blueberry: new THREE.MeshStandardMaterial({ color: CROP_TYPES.blueberry.readyColor, roughness: 0.68 }),
+  trunk: new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 }),
+  oakLeaf: new THREE.MeshStandardMaterial({ color: 0x2e5c1e, roughness: 0.85 }),
+  pineLeaf: new THREE.MeshStandardMaterial({ color: 0x1d3c1f, roughness: 0.85 })
 };
 
 // Geometri detay seviyesi helper'ı
@@ -153,6 +176,8 @@ export function createCropMesh(cropId, stage) {
   if (cropId === "tomato") return createTomato();
   if (cropId === "pumpkin") return createPumpkin();
   if (cropId === "blueberry") return createBlueberry();
+  if (cropId === "oak_tree") return createOakTree();
+  if (cropId === "pine_tree") return createPineTree();
   return createWheat();
 }
 
@@ -318,5 +343,85 @@ function createBlueberry() {
     );
     group.add(b);
   }
+  return group;
+}
+
+function createOakTree() {
+  const group = new THREE.Group();
+  
+  // Trunk
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.03, 0.28, getSegments("cylinder")),
+    materials.trunk
+  );
+  trunk.position.y = 0.14;
+  group.add(trunk);
+  
+  // Oak leaves (layered spheres)
+  const foliage = new THREE.Group();
+  foliage.position.y = 0.26;
+  
+  const sphere1 = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09, getSegments("sphere"), getSegments("sphere") - 4),
+    materials.oakLeaf
+  );
+  sphere1.position.set(0, 0.04, 0);
+  foliage.add(sphere1);
+
+  const sphere2 = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, getSegments("sphere"), getSegments("sphere") - 4),
+    materials.oakLeaf
+  );
+  sphere2.position.set(-0.04, 0.08, 0.02);
+  foliage.add(sphere2);
+
+  const sphere3 = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, getSegments("sphere"), getSegments("sphere") - 4),
+    materials.oakLeaf
+  );
+  sphere3.position.set(0.03, 0.08, -0.03);
+  foliage.add(sphere3);
+
+  group.add(foliage);
+  return group;
+}
+
+function createPineTree() {
+  const group = new THREE.Group();
+  
+  // Trunk
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.018, 0.028, 0.32, getSegments("cylinder")),
+    materials.trunk
+  );
+  trunk.position.y = 0.16;
+  group.add(trunk);
+  
+  // Pine leaves (conic layers)
+  const foliage = new THREE.Group();
+  foliage.position.y = 0.16;
+  
+  const cone1 = new THREE.Mesh(
+    new THREE.ConeGeometry(0.1, 0.14, getSegments("cone")),
+    materials.pineLeaf
+  );
+  cone1.position.y = 0.08;
+  foliage.add(cone1);
+
+  const cone2 = new THREE.Mesh(
+    new THREE.ConeGeometry(0.08, 0.12, getSegments("cone")),
+    materials.pineLeaf
+  );
+  cone2.position.y = 0.16;
+  foliage.add(cone2);
+
+  const cone3 = new THREE.Mesh(
+    new THREE.ConeGeometry(0.05, 0.09, getSegments("cone")),
+    materials.pineLeaf
+  );
+  cone3.position.y = 0.23;
+  foliage.add(cone3);
+
+  group.add(foliage);
   return group;
 }

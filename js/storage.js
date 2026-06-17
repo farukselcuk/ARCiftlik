@@ -15,9 +15,15 @@ const DEFAULTS_BY_NAMESPACE = {
     xp: 0,
     inventory: {
       wheat: 0, corn: 0, carrot: 0, strawberry: 0, potato: 0, sunflower: 0, tomato: 0, pumpkin: 0, blueberry: 0,
+      apple: 0, orange: 0,
       golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0,
-      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0
+      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0,
+      wood_oak: 0, wood_pine: 0,
+      furniture_stool: 0, furniture_table: 0, furniture_cabinet: 0,
+      flour: 0, bread: 0, strawberry_cake: 0, blueberry_pie: 0, carrot_cake: 0
     },
+    shopItems: [],
+    pendingGold: 0,
     pet: { purchased: false },
     dailyLogin: { streak: 0, lastLoginDate: null, claimed: false },
     weather: { current: "sunny", nextChangeAt: 0 },
@@ -33,6 +39,12 @@ const DEFAULTS_BY_NAMESPACE = {
   },
   market: {
     orders: []
+  },
+  bakery: {
+    activeRecipe: null,
+    startTime: 0,
+    duration: 0,
+    isReady: false
   }
 };
 

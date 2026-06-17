@@ -7,15 +7,21 @@ export const DECORATION_TYPES = {
   well: { id: 'well', name: 'Taş Kuyu', cost: 500, icon: '🧱' },
   flower_bed: { id: 'flower_bed', name: 'Çiçek Tarhı', cost: 80, icon: '🌸' },
   scarecrow: { id: 'scarecrow', name: 'Korkuluk', cost: 200, icon: '🌾' },
-  stone_path: { id: 'stone_path', name: 'Taş Yol', cost: 30, icon: '🛣️' }
+  stone_path: { id: 'stone_path', name: 'Taş Yol', cost: 30, icon: '🛣️' },
+  oak_sapling: { id: 'oak_sapling', name: 'Meşe Fidanı', cost: 120, icon: '🌳' },
+  pine_sapling: { id: 'pine_sapling', name: 'Çam Fidanı', cost: 150, icon: '🌲' },
+  apple_sapling: { id: 'apple_sapling', name: 'Elma Fidanı', cost: 200, icon: '🍎' },
+  orange_sapling: { id: 'orange_sapling', name: 'Portakal Fidanı', cost: 220, icon: '🍊' }
 };
 
 /**
  * 3D Mesh generator for decorations
  * @param {string} decoId 
+ * @param {number} stage
+ * @param {boolean} hasFruit
  * @returns {THREE.Group}
  */
-export function createDecorationMesh(decoId) {
+export function createDecorationMesh(decoId, stage = 1, hasFruit = false) {
   const group = new THREE.Group();
   group.name = `deco-${decoId}`;
 
@@ -26,6 +32,18 @@ export function createDecorationMesh(decoId) {
   });
 
   switch (decoId) {
+    case 'oak_sapling': {
+      return createSaplingMesh('oak', stage, hasFruit);
+    }
+    case 'pine_sapling': {
+      return createSaplingMesh('pine', stage, hasFruit);
+    }
+    case 'apple_sapling': {
+      return createSaplingMesh('apple', stage, hasFruit);
+    }
+    case 'orange_sapling': {
+      return createSaplingMesh('orange', stage, hasFruit);
+    }
     case 'fence': {
       // Wood fence post
       const woodMat = defaultMaterial(0x8B5A2B);
@@ -253,13 +271,16 @@ export const DECORATION_ZONES = {
    */
   getValidPositions(gridRows, gridCols) {
     const list = [];
+    const minCol = -12;
+    const maxCol = gridCols + 11;
+    const minRow = -12;
+    const maxRow = gridRows + 11;
     
-    // We can place decorations in a ring around the plot grid:
-    // col = -1 or col = gridCols, or row = -1 or row = gridRows
-    for (let col = -1; col <= gridCols; col++) {
-      for (let row = -1; row <= gridRows; row++) {
-        const isBorder = (col === -1 || col === gridCols || row === -1 || row === gridRows);
-        if (isBorder) {
+    for (let col = minCol; col <= maxCol; col++) {
+      for (let row = minRow; row <= maxRow; row++) {
+        // Tarlanın içi hariç (col >= 0 ve col < gridCols && row >= 0 && row < gridRows)
+        const isInsideFarm = (col >= 0 && col < gridCols && row >= 0 && row < gridRows);
+        if (!isInsideFarm) {
           list.push({ col, row });
         }
       }
@@ -302,3 +323,119 @@ export const DECORATION_ZONES = {
     });
   }
 };
+
+function createSaplingMesh(type, stage, hasFruit) {
+  const group = new THREE.Group();
+  
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.9 });
+  const oakLeafMat = new THREE.MeshStandardMaterial({ color: 0x2e5c1e, roughness: 0.85 });
+  const pineLeafMat = new THREE.MeshStandardMaterial({ color: 0x1d3c1f, roughness: 0.85 });
+  const appleLeafMat = new THREE.MeshStandardMaterial({ color: 0x3d702d, roughness: 0.8 });
+  const orangeLeafMat = new THREE.MeshStandardMaterial({ color: 0x316927, roughness: 0.8 });
+  
+  let leafMat = oakLeafMat;
+  if (type === 'pine') leafMat = pineLeafMat;
+  else if (type === 'apple') leafMat = appleLeafMat;
+  else if (type === 'orange') leafMat = orangeLeafMat;
+
+  if (stage === 1) {
+    // Fidan aşaması: ince kısa bir dal ve minik yaprak
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.009, 0.08, 6), trunkMat);
+    stem.position.y = 0.04;
+    group.add(stem);
+
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.024, 6, 6), leafMat);
+    leaf.position.y = 0.08;
+    group.add(leaf);
+  } else if (stage === 2) {
+    // Orta boy aşaması
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.16, 8), trunkMat);
+    stem.position.y = 0.08;
+    group.add(stem);
+
+    if (type === 'pine') {
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.1, 8), leafMat);
+      cone.position.y = 0.14;
+      group.add(cone);
+    } else {
+      const leaf1 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), leafMat);
+      leaf1.position.y = 0.15;
+      group.add(leaf1);
+    }
+  } else {
+    // Yetişkin aşaması
+    if (type === 'oak' || type === 'apple' || type === 'orange') {
+      // Trunk
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.28, 8), trunkMat);
+      trunk.position.y = 0.14;
+      group.add(trunk);
+      
+      const foliage = new THREE.Group();
+      foliage.position.y = 0.26;
+      
+      const sphere1 = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), leafMat);
+      sphere1.position.set(0, 0.04, 0);
+      foliage.add(sphere1);
+
+      const sphere2 = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), leafMat);
+      sphere2.position.set(-0.04, 0.08, 0.02);
+      foliage.add(sphere2);
+
+      const sphere3 = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), leafMat);
+      sphere3.position.set(0.03, 0.08, -0.03);
+      foliage.add(sphere3);
+
+      group.add(foliage);
+
+      // Meyveler
+      if (hasFruit && (type === 'apple' || type === 'orange')) {
+        const fruitColor = type === 'apple' ? 0xff3b30 : 0xff9500;
+        const fruitMat = new THREE.MeshStandardMaterial({ color: fruitColor, roughness: 0.3 });
+        const fruitGeo = new THREE.SphereGeometry(0.015, 6, 6);
+
+        const f1 = new THREE.Mesh(fruitGeo, fruitMat);
+        f1.position.set(-0.04, 0.28, 0.04);
+        group.add(f1);
+
+        const f2 = new THREE.Mesh(fruitGeo, fruitMat);
+        f2.position.set(0.04, 0.30, -0.04);
+        group.add(f2);
+
+        const f3 = new THREE.Mesh(fruitGeo, fruitMat);
+        f3.position.set(0, 0.34, 0.05);
+        group.add(f3);
+      }
+    } else {
+      // Pine
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.028, 0.32, 8), trunkMat);
+      trunk.position.y = 0.16;
+      group.add(trunk);
+      
+      const foliage = new THREE.Group();
+      foliage.position.y = 0.16;
+      
+      const cone1 = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.14, 8), leafMat);
+      cone1.position.y = 0.08;
+      foliage.add(cone1);
+
+      const cone2 = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.12, 8), leafMat);
+      cone2.position.y = 0.16;
+      foliage.add(cone2);
+
+      const cone3 = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.09, 8), leafMat);
+      cone3.position.y = 0.23;
+      foliage.add(cone3);
+
+      group.add(foliage);
+    }
+  }
+
+  group.traverse(child => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+
+  return group;
+}

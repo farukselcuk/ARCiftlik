@@ -57,7 +57,9 @@ export class GameUI {
       sunflower: "🌻",
       tomato: "🍅",
       pumpkin: "🎃",
-      blueberry: "🫐"
+      blueberry: "🫐",
+      oak_tree: "🌳",
+      pine_tree: "🌲"
     };
 
     Object.values(CROP_TYPES).forEach((crop) => {
