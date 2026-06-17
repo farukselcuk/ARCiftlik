@@ -12,6 +12,8 @@ import { setupViewportFix } from "./permissions.js";
 import { FARM_EXPANSIONS } from "./farm.js";
 import { Performance } from "./performance.js";
 import * as firebaseService from "./firebase-service.js";
+import { AudioSystem } from "./audio.js";
+import { SocialSystem, generateFriendCode } from "./social.js";
 
 // Viewport düzeltmesi (Android klavye sorunu)
 setupViewportFix();
@@ -43,6 +45,8 @@ let seasonSystem = null;
 let ui = null;
 let sceneManager = null;
 let character = null;
+let audioSystem = null;
+let socialSystem = null;
 
 // Göç / Bildirim kontrolü
 let _migrationNotice = null;
@@ -96,9 +100,45 @@ async function initGame(user, nickname) {
   weatherSystem = new WeatherSystem(globalStorage);
   seasonSystem = new SeasonSystem(globalStorage);
   
+  audioSystem = new AudioSystem();
+  audioSystem.init();
+  window.audioSystem = audioSystem;
+
+  socialSystem = new SocialSystem(globalStorage, inventory);
+  window.socialSystem = socialSystem;
+
   window.seasonSystem = seasonSystem;
   window.weatherSystem = weatherSystem;
   window.cycleStartTime = Date.now();
+
+  // Sound settings initialization
+  const toggleSoundBtn = document.querySelector("#toggle-sound-btn");
+  const soundStatusLabel = document.querySelector("#sound-status-label");
+  const soundVolumeSlider = document.querySelector("#sound-volume-slider");
+  if (toggleSoundBtn && soundStatusLabel && soundVolumeSlider) {
+    const updateSoundUI = () => {
+      soundStatusLabel.textContent = audioSystem.enabled ? "Sesler Açık 🔊" : "Sesler Kapalı 🔇";
+      toggleSoundBtn.textContent = audioSystem.enabled ? "Kapat" : "Aç";
+      soundVolumeSlider.value = audioSystem.volume;
+    };
+    updateSoundUI();
+    toggleSoundBtn.onclick = (e) => {
+      e.stopPropagation();
+      audioSystem.toggle();
+      updateSoundUI();
+      audioSystem.updateAmbience(weatherSystem.current);
+    };
+    soundVolumeSlider.oninput = (e) => {
+      audioSystem.setVolume(parseFloat(e.target.value));
+    };
+  }
+
+  // Display friend code
+  const myFriendCodeVal = generateFriendCode(user.uid);
+  const myFriendCodeEl = document.querySelector("#my-friend-code");
+  if (myFriendCodeEl) {
+    myFriendCodeEl.textContent = myFriendCodeVal;
+  }
   
   // UI Yönetimi
   ui = new GameUI(globalStorage);
@@ -117,7 +157,12 @@ async function initGame(user, nickname) {
   weatherSystem.onWeatherChange = (newWeather, info) => {
     if (ui) ui.showToast(`Hava değişti: ${info.icon} ${info.name}`);
     updateWeatherUI();
+    if (audioSystem) audioSystem.updateAmbience(newWeather);
   };
+  
+  if (audioSystem) {
+    audioSystem.updateAmbience(weatherSystem.current);
+  }
   
   seasonSystem.onSeasonChange = (oldSeason, newSeason) => {
     const info = SeasonSystem.SEASONS[newSeason];
@@ -129,11 +174,15 @@ async function initGame(user, nickname) {
     if (loot.type === "gold") {
       ui.updateCoins(loot.amount);
       ui.showToast(`🎁 Sandıktan ${loot.amount} altın çıktı!`);
+      if (audioSystem) audioSystem.playCoin();
     } else if (loot.type === "seed" && loot.cropId) {
       inventory.add(loot.cropId, loot.amount || 1);
       ui.showToast(`🎁 Sandıktan ${loot.cropId} tohumu çıktı!`);
+      if (audioSystem) audioSystem.playPlant();
     } else if (loot.type === "fertilizer") {
-      ui.showToast(`🎁 Sandıktan gübre çıktı!`);
+      inventory.add("fertilizer_basic", 1);
+      ui.showToast(`🎁 Sandıktan gübre çıktı! (1 adet Basit Gübre eklendi)`);
+      if (audioSystem) audioSystem.playFertilize();
     }
     updateWarehouseUI();
   };
@@ -278,12 +327,14 @@ window.addEventListener("xp-updated", (e) => {
 
 window.addEventListener("coins-reward", (e) => {
   ui.updateCoins(e.detail.amount);
+  if (audioSystem) audioSystem.playCoin();
 });
 
 window.addEventListener("spend-coins", (e) => {
   const { amount, callback } = e.detail;
   if (ui.coins >= amount) {
     ui.updateCoins(-amount);
+    if (audioSystem) audioSystem.playCoin();
     callback(true);
   } else {
     ui.showToast("🪙 Yetersiz Altın!");
@@ -308,6 +359,8 @@ window.addEventListener("crop-harvested", (e) => {
   const { cropId, name, isGolden } = e.detail;
   const harvestBonus = seasonSystem.getHarvestBonus();
   
+  if (audioSystem) audioSystem.playHarvest();
+
   if (isGolden) {
     inventory.add(`golden_${cropId}`, 1);
     ui.showToast(`✨ ALTIN ${name.toUpperCase()} HASAT EDİLDİ! (10x Fiyat) ✨`);
@@ -861,6 +914,28 @@ function updateMarketUI() {
     buyPetBtn.textContent = "Satın Al: 150 🪙";
     buyPetBtn.disabled = ui.coins < 150;
   }
+
+  // Gübre envanter ve buton durumları
+  if (inventory) {
+    const basicCount = inventory.getCount("fertilizer_basic");
+    const superCount = inventory.getCount("fertilizer_super");
+    const goldenCount = inventory.getCount("fertilizer_golden");
+    
+    const fBasicOwned = document.querySelector("#fertilizer-basic-owned");
+    const fSuperOwned = document.querySelector("#fertilizer-super-owned");
+    const fGoldenOwned = document.querySelector("#fertilizer-golden-owned");
+    const fBasicBuy = document.querySelector("#buy-fertilizer-basic");
+    const fSuperBuy = document.querySelector("#buy-fertilizer-super");
+    const fGoldenBuy = document.querySelector("#buy-fertilizer-golden");
+
+    if (fBasicOwned) fBasicOwned.textContent = `Sahip Olunan: ${basicCount}`;
+    if (fSuperOwned) fSuperOwned.textContent = `Sahip Olunan: ${superCount}`;
+    if (fGoldenOwned) fGoldenOwned.textContent = `Sahip Olunan: ${goldenCount}`;
+
+    if (fBasicBuy) fBasicBuy.disabled = ui.coins < 20;
+    if (fSuperBuy) fSuperBuy.disabled = ui.coins < 50;
+    if (fGoldenBuy) fGoldenBuy.disabled = ui.coins < 120;
+  }
 }
 
 function updateWarehouseUI() {
@@ -990,6 +1065,421 @@ function updateOrdersUI() {
     });
   });
 }
+
+
+// ── GÜBRE SATIN ALMA VE UYGULAMA ENTEGRASYONU ────────────────────
+document.querySelectorAll(".buy-fertilizer-btn").forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const type = btn.dataset.type;
+    let cost = 20;
+    if (type === "fertilizer_super") cost = 50;
+    if (type === "fertilizer_golden") cost = 120;
+    
+    if (ui.coins >= cost) {
+      ui.updateCoins(-cost);
+      inventory.add(type, 1);
+      const names = { fertilizer_basic: "Basit Gübre", fertilizer_super: "Süper Gübre", fertilizer_golden: "Altın Gübre" };
+      ui.showToast(`1 adet ${names[type]} satın alındı!`);
+      updateMarketUI();
+    } else {
+      ui.showToast("🪙 Yetersiz Altın!");
+    }
+  });
+});
+
+let activePlotIndexForFertilizer = null;
+const fertilizerPicker = document.querySelector("#fertilizer-picker");
+
+window.addEventListener("open-fertilizer-picker", (e) => {
+  activePlotIndexForFertilizer = e.detail.plotIndex;
+  
+  // Envanter adetlerini güncelle
+  const basicCountEl = document.querySelector("#picker-fert-basic-count");
+  const superCountEl = document.querySelector("#picker-fert-super-count");
+  const goldenCountEl = document.querySelector("#picker-fert-golden-count");
+  
+  if (basicCountEl) basicCountEl.textContent = `Adet: ${inventory.getCount("fertilizer_basic")}`;
+  if (superCountEl) superCountEl.textContent = `Adet: ${inventory.getCount("fertilizer_super")}`;
+  if (goldenCountEl) goldenCountEl.textContent = `Adet: ${inventory.getCount("fertilizer_golden")}`;
+  
+  fertilizerPicker.classList.add("is-visible");
+});
+
+document.querySelector("#fertilizer-picker .seed-picker-backdrop").addEventListener("click", () => {
+  fertilizerPicker.classList.remove("is-visible");
+});
+
+document.querySelectorAll(".fert-option-card").forEach(card => {
+  card.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const fertType = card.dataset.fertilizer;
+    
+    if (!inventory.has(fertType, 1)) {
+      ui.showToast("Envanterinizde bu gübreden kalmadı!");
+      return;
+    }
+    
+    if (activePlotIndexForFertilizer !== null) {
+      const scene = sceneManager.scenes.farm;
+      const plot = scene.farm.plots[activePlotIndexForFertilizer];
+      if (plot.fertilizer) {
+        ui.showToast("Bu tarlaya zaten gübre uygulanmış!");
+        fertilizerPicker.classList.remove("is-visible");
+        return;
+      }
+      
+      const success = scene.farm.applyFertilizer(activePlotIndexForFertilizer, fertType);
+      if (success) {
+        inventory.deduct(fertType, 1);
+        const names = { fertilizer_basic: "Basit Gübre", fertilizer_super: "Süper Gübre", fertilizer_golden: "Altın Gübre" };
+        ui.showToast(`${names[fertType]} uygulandı! 🧪`);
+        if (audioSystem) audioSystem.playFertilize();
+        scene.farm.updateFertilizerVisual(plot);
+      }
+      fertilizerPicker.classList.remove("is-visible");
+      activePlotIndexForFertilizer = null;
+    }
+  });
+});
+
+// ── DEKORASYON (SÜSLEME) ENTEGRASYONU ───────────────────────────
+const decorationsModal = document.querySelector("#decorations-modal");
+const openDecorationsBtn = document.querySelector("#open-decorations");
+const closeDecorationsBtn = document.querySelector("#close-decorations");
+const toggleEditModeBtn = document.querySelector("#toggle-edit-mode-btn");
+
+if (openDecorationsBtn && decorationsModal) {
+  openDecorationsBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    decorationsModal.classList.add("is-visible");
+    updateDecorationsUI();
+  });
+
+  closeDecorationsBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    decorationsModal.classList.remove("is-visible");
+  });
+}
+
+function updateDecorationsUI() {
+  const DECORATION_COSTS = {
+    fence: 50, lantern: 100, bench: 150, well: 500, flower_bed: 80, scarecrow: 200, stone_path: 30
+  };
+  
+  document.querySelectorAll(".buy-deco-btn").forEach(btn => {
+    const type = btn.dataset.deco;
+    const cost = DECORATION_COSTS[type] || 0;
+    btn.disabled = ui.coins < cost;
+  });
+
+  const isEdit = sceneManager.scenes.farm.editMode;
+  if (toggleEditModeBtn) {
+    toggleEditModeBtn.textContent = isEdit ? "Düzenleme Modundan Çık ✖" : "Düzenleme Moduna Gir 🛠️";
+    toggleEditModeBtn.style.background = isEdit ? "#e94042" : "#3498db";
+  }
+}
+
+if (toggleEditModeBtn) {
+  toggleEditModeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const scene = sceneManager.scenes.farm;
+    const nextEditMode = !scene.editMode;
+    scene.setEditMode(nextEditMode, nextEditMode ? "fence" : null);
+    
+    updateDecorationsUI();
+    if (nextEditMode) {
+      decorationsModal.classList.remove("is-visible");
+      ui.showToast("Düzenleme modu aktif! Kenarlardaki yeşil alanlara dokunarak yerleştirin, kırmızı alanlara dokunarak kaldırın.");
+    } else {
+      ui.showToast("Düzenleme modundan çıkıldı.");
+    }
+  });
+}
+
+document.querySelectorAll(".buy-deco-btn").forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const type = btn.dataset.deco;
+    const scene = sceneManager.scenes.farm;
+    
+    scene.setEditMode(true, type);
+    updateDecorationsUI();
+    decorationsModal.classList.remove("is-visible");
+    const names = { fence: "Ahşap Çit", lantern: "Bahçe Feneri", bench: "Ahşap Bank", well: "Taş Kuyu", flower_bed: "Çiçek Tarhı", scarecrow: "Korkuluk", stone_path: "Taş Yol" };
+    ui.showToast(`Düzenleme modu aktif: ${names[type]} yerleştirmek için yeşil alanlara dokunun.`);
+  });
+});
+
+// ── SOSYAL (ARKADAŞLIK) ENTEGRASYONU ────────────────────────────
+const socialModal = document.querySelector("#social-modal");
+const openSocialBtn = document.querySelector("#open-social");
+const closeSocialBtn = document.querySelector("#close-social");
+const addFriendBtn = document.querySelector("#add-friend-btn");
+const addFriendCodeInput = document.querySelector("#add-friend-code-input");
+const claimAllGiftsBtn = document.querySelector("#claim-all-gifts-btn");
+
+if (openSocialBtn && socialModal) {
+  openSocialBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    socialModal.classList.add("is-visible");
+    await updateSocialModalUI();
+  });
+
+  closeSocialBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    socialModal.classList.remove("is-visible");
+  });
+}
+
+async function updateSocialModalUI() {
+  if (!socialSystem) return;
+
+  const friendsListEl = document.querySelector("#friends-list");
+  const incomingGiftsSection = document.querySelector("#incoming-gifts-section");
+  const incomingGiftsList = document.querySelector("#incoming-gifts-list");
+
+  // Gelen hediyeleri getir
+  try {
+    const gifts = await socialSystem.getIncomingGifts();
+    if (gifts && gifts.length > 0) {
+      if (incomingGiftsSection) incomingGiftsSection.style.display = "flex";
+      if (incomingGiftsList) {
+        incomingGiftsList.innerHTML = gifts.map(g => {
+          let giftName = g.type;
+          if (g.type === "fertilizer_basic") giftName = "🧪 Basit Gübre";
+          else if (g.type === "fertilizer_super") giftName = "🧪⚡ Süper Gübre";
+          else if (g.type === "fertilizer_golden") giftName = "✨🧪 Altın Gübre";
+          else if (g.type === "coins_50") giftName = "🪙 50 Altın";
+          return `<div style="padding: 4px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-bottom: 2px;">
+            <strong>${g.senderName}</strong> size <strong>${giftName}</strong> gönderdi!
+          </div>`;
+        }).join("");
+      }
+    } else {
+      if (incomingGiftsSection) incomingGiftsSection.style.display = "none";
+      if (incomingGiftsList) incomingGiftsList.innerHTML = "";
+    }
+  } catch (err) {
+    console.error("Gelen hediyeler yüklenemedi:", err);
+  }
+
+  // Arkadaşlar listesini yükle
+  try {
+    if (friendsListEl) friendsListEl.innerHTML = `<div style="text-align: center; padding: 15px; color: rgba(255,255,255,0.5);">Yükleniyor...</div>`;
+    const friends = await socialSystem.getFriendsList();
+    if (friendsListEl) friendsListEl.innerHTML = "";
+
+    if (friends.length === 0) {
+      if (friendsListEl) {
+        friendsListEl.innerHTML = `<div style="text-align: center; padding: 15px; color: rgba(255,255,255,0.5);">Henüz arkadaşınız yok. Üstteki kod ile arkadaş ekleyebilirsiniz!</div>`;
+      }
+      return;
+    }
+
+    friends.forEach(friend => {
+      const itemEl = document.createElement("div");
+      itemEl.className = "sell-item";
+      itemEl.style.alignItems = "center";
+      itemEl.innerHTML = `
+        <div class="sell-info" style="text-align: left;">
+          <span class="sell-name" style="font-size: 14px;">🏡 ${friend.nickname}</span>
+          <span class="sell-count" style="font-size: 11px; opacity: 0.7;">Seviye ${friend.level}</span>
+        </div>
+        <button class="primary-button visit-friend-btn" data-uid="${friend.uid}" data-name="${friend.nickname}" style="width: auto; min-height: 32px; font-size: 12px; margin: 0; padding: 0 12px; background: #3498db;" type="button">
+          Ziyaret Et 🚀
+        </button>
+      `;
+      if (friendsListEl) friendsListEl.appendChild(itemEl);
+    });
+
+    document.querySelectorAll(".visit-friend-btn").forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const friendUid = btn.dataset.uid;
+        const friendName = btn.dataset.name;
+        
+        socialModal.classList.remove("is-visible");
+        ui.showToast(`${friendName} çiftliğine gidiliyor...`);
+
+        try {
+          const userSnap = await firebaseService.loadOrCreateProfile(firebaseService.auth.currentUser);
+          const myName = userSnap.nickname || "Misafir";
+          const friendData = await socialSystem.visitFriendFarm(friendUid, myName);
+          
+          const scene = sceneManager.scenes.farm;
+          scene.loadFriendData(friendData);
+          
+          const visitOverlay = document.querySelector("#visit-overlay");
+          const visitOwnerName = document.querySelector("#visit-owner-name");
+          if (visitOwnerName) visitOwnerName.textContent = friendName;
+          
+          if (visitOverlay) {
+            visitOverlay.dataset.friendUid = friendUid;
+            visitOverlay.dataset.friendName = friendName;
+            visitOverlay.style.display = "block";
+          }
+          
+        } catch (err) {
+          console.error("Ziyaret hatası:", err);
+          ui.showToast(`Çiftlik ziyaret edilemedi: ${err.message}`);
+        }
+      };
+    });
+
+  } catch (err) {
+    console.error("Arkadaş listesi yüklenemedi:", err);
+    if (friendsListEl) friendsListEl.innerHTML = `<div style="text-align: center; padding: 15px; color: #ff6b6b;">Yüklenirken hata oluştu!</div>`;
+  }
+}
+
+if (addFriendBtn && addFriendCodeInput) {
+  addFriendBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const code = addFriendCodeInput.value.trim().toUpperCase();
+    if (code.length !== 6) {
+      ui.showToast("Lütfen 6 haneli arkadaş kodunu girin.");
+      return;
+    }
+
+    addFriendBtn.disabled = true;
+    try {
+      const friendInfo = await socialSystem.addFriend(code);
+      ui.showToast(`👥 ${friendInfo.nickname} arkadaş olarak eklendi!`);
+      addFriendCodeInput.value = "";
+      await updateSocialModalUI();
+    } catch (err) {
+      ui.showToast(err.message);
+    } finally {
+      addFriendBtn.disabled = false;
+    }
+  });
+}
+
+if (claimAllGiftsBtn) {
+  claimAllGiftsBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    try {
+      const claimed = await socialSystem.claimGifts();
+      if (claimed && claimed.length > 0) {
+        let coinsAdded = 0;
+        const fertAdded = { fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0 };
+        
+        claimed.forEach(gift => {
+          if (gift.type === "coins_50") {
+            coinsAdded += 50;
+          } else if (fertAdded[gift.type] !== undefined) {
+            fertAdded[gift.type] += 1;
+          }
+        });
+        
+        const parts = [];
+        if (coinsAdded > 0) {
+          ui.updateCoins(coinsAdded);
+          parts.push(`🪙 ${coinsAdded} Altın`);
+        }
+        Object.keys(fertAdded).forEach(k => {
+          if (fertAdded[k] > 0) {
+            inventory.add(k, fertAdded[k]);
+            const names = { fertilizer_basic: "Basit Gübre", fertilizer_super: "Süper Gübre", fertilizer_golden: "Altın Gübre" };
+            parts.push(`${fertAdded[k]} adet ${names[k]}`);
+          }
+        });
+        
+        ui.showToast(`🎁 Hediyeler alındı! ${parts.join(", ")}`);
+        await updateSocialModalUI();
+        updateWarehouseUI();
+      } else {
+        ui.showToast("Alınacak hediye bulunamadı.");
+      }
+    } catch (err) {
+      console.error("Hediyeler alınırken hata:", err);
+      ui.showToast("Hediyeler alınamadı.");
+    }
+  });
+}
+
+// Ziyaret Overlay Buton Olayları
+const visitOverlay = document.querySelector("#visit-overlay");
+const visitHelpBtn = document.querySelector("#visit-help-btn");
+const visitGiftBtn = document.querySelector("#visit-gift-btn");
+const visitBackBtn = document.querySelector("#visit-back-btn");
+
+if (visitBackBtn) {
+  visitBackBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const scene = sceneManager.scenes.farm;
+    scene.restoreMyFarm();
+    if (visitOverlay) visitOverlay.style.display = "none";
+    ui.showToast("Kendi çiftliğinize döndünüz. 🏡");
+  });
+}
+
+if (visitHelpBtn) {
+  visitHelpBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const friendUid = visitOverlay ? visitOverlay.dataset.friendUid : null;
+    const friendName = visitOverlay ? visitOverlay.dataset.friendName : "";
+    if (!friendUid) return;
+
+    try {
+      const userSnap = await firebaseService.loadOrCreateProfile(firebaseService.auth.currentUser);
+      const myName = userSnap.nickname || "Arkadaş";
+      const success = await socialSystem.helpFriend(friendUid, myName);
+      if (success) {
+        character.addXP(10, "help_friend");
+        ui.showToast(`${friendName} çiftliğine yardım edildi! +10 XP 🤝`);
+      }
+    } catch (err) {
+      ui.showToast(err.message);
+    }
+  });
+}
+
+const giftModal = document.querySelector("#gift-modal");
+const closeGiftBtn = document.querySelector("#close-gift");
+
+if (visitGiftBtn && giftModal) {
+  visitGiftBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    giftModal.classList.add("is-visible");
+  });
+}
+
+if (closeGiftBtn && giftModal) {
+  closeGiftBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    giftModal.classList.remove("is-visible");
+  });
+}
+
+document.querySelectorAll(".gift-option-btn").forEach(btn => {
+  btn.onclick = async (e) => {
+    e.stopPropagation();
+    const giftType = btn.dataset.gift;
+    const friendUid = visitOverlay ? visitOverlay.dataset.friendUid : null;
+    const friendName = visitOverlay ? visitOverlay.dataset.friendName : "";
+    if (!friendUid) return;
+
+    try {
+      if (giftType === "coins_50") {
+        if (ui.coins < 50) {
+          ui.showToast("🪙 Yetersiz Altın!");
+          return;
+        }
+        ui.updateCoins(-50);
+      }
+      
+      const userSnap = await firebaseService.loadOrCreateProfile(firebaseService.auth.currentUser);
+      const myName = userSnap.nickname || "Arkadaş";
+      await socialSystem.sendGift(friendUid, myName, giftType);
+      ui.showToast(`🎁 ${friendName} arkadaşınıza hediye gönderildi!`);
+      if (giftModal) giftModal.classList.remove("is-visible");
+    } catch (err) {
+      ui.showToast(err.message);
+    }
+  };
+});
 
 // Render Loop
 let lastTime = performance.now();

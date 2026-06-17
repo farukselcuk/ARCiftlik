@@ -35,13 +35,18 @@ export class Inventory {
           golden_sunflower: Number(saved.golden_sunflower) || 0,
           golden_tomato: Number(saved.golden_tomato) || 0,
           golden_pumpkin: Number(saved.golden_pumpkin) || 0,
-          golden_blueberry: Number(saved.golden_blueberry) || 0
+          golden_blueberry: Number(saved.golden_blueberry) || 0,
+
+          fertilizer_basic: Number(saved.fertilizer_basic) || 0,
+          fertilizer_super: Number(saved.fertilizer_super) || 0,
+          fertilizer_golden: Number(saved.fertilizer_golden) || 0
         };
       }
     } catch {}
     return {
       wheat: 0, corn: 0, carrot: 0, strawberry: 0, potato: 0, sunflower: 0, tomato: 0, pumpkin: 0, blueberry: 0,
-      golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0
+      golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0,
+      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0
     };
   }
 
@@ -77,7 +82,8 @@ export class Inventory {
   reset() {
     this.items = {
       wheat: 0, corn: 0, carrot: 0, strawberry: 0, potato: 0, sunflower: 0, tomato: 0, pumpkin: 0, blueberry: 0,
-      golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0
+      golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0,
+      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0
     };
     this.save();
   }

@@ -15,7 +15,8 @@ const DEFAULTS_BY_NAMESPACE = {
     xp: 0,
     inventory: {
       wheat: 0, corn: 0, carrot: 0, strawberry: 0, potato: 0, sunflower: 0, tomato: 0, pumpkin: 0, blueberry: 0,
-      golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0
+      golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0,
+      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0
     },
     pet: { purchased: false },
     dailyLogin: { streak: 0, lastLoginDate: null, claimed: false },
@@ -24,7 +25,8 @@ const DEFAULTS_BY_NAMESPACE = {
   },
   farm: {
     plots: [],
-    unlockedPlots: 4
+    unlockedPlots: 4,
+    decorations: []
   },
   barn: {
     petFriendship: { level: 1, xp: 0, todayInteractions: 0, lastInteractionDate: null }

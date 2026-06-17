@@ -52,6 +52,8 @@
           <button id="open-orders" class="icon-button" type="button" aria-label="Open orders" title="Siparişler">📋</button>
           <button id="open-market" class="icon-button" type="button" aria-label="Open market" title="Market">🛒</button>
           <button id="open-warehouse" class="icon-button" type="button" aria-label="Open warehouse" title="Depo">📦</button>
+          <button id="open-decorations" class="icon-button" type="button" aria-label="Open decorations" title="Süslemeler">🧱</button>
+          <button id="open-social" class="icon-button" type="button" aria-label="Open social" title="Sosyal">👥</button>
           <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in">+</button>
           <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">-</button>
           <button id="reset-farm" class="icon-button" type="button" aria-label="Move farm">↻</button>
@@ -156,6 +158,33 @@
                 <div class="item-stats" id="pet-status">Not Purchased</div>
               </div>
               <button id="buy-pet" class="primary-button" type="button">Buy for 150 🪙</button>
+            </div>
+            <!-- Basit Gübre -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Basit Gübre 🧪</h3>
+                <p>Büyüme hızını 2 katına (x2) çıkarır.</p>
+                <div class="item-stats" id="fertilizer-basic-owned">Sahip Olunan: 0</div>
+              </div>
+              <button id="buy-fertilizer-basic" class="primary-button buy-fertilizer-btn" data-type="fertilizer_basic" type="button">Satın Al (20 🪙)</button>
+            </div>
+            <!-- Süper Gübre -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Süper Gübre 🧪⚡</h3>
+                <p>Büyüme hızını 3 katına (x3) çıkarır.</p>
+                <div class="item-stats" id="fertilizer-super-owned">Sahip Olunan: 0</div>
+              </div>
+              <button id="buy-fertilizer-super" class="primary-button buy-fertilizer-btn" data-type="fertilizer_super" type="button">Satın Al (50 🪙)</button>
+            </div>
+            <!-- Altın Gübre -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Altın Gübre ✨🧪</h3>
+                <p>Büyüme hızını 4 katına (x4) çıkarır ve hasatta %100 altın ürün verir.</p>
+                <div class="item-stats" id="fertilizer-golden-owned">Sahip Olunan: 0</div>
+              </div>
+              <button id="buy-fertilizer-golden" class="primary-button buy-fertilizer-btn" data-type="fertilizer_golden" type="button">Satın Al (120 🪙)</button>
             </div>
           </div>
         </div>
@@ -343,6 +372,18 @@
               </div>
             </div>
             
+            <div class="market-item" style="padding: 12px; gap: 8px;">
+              <h3 style="margin: 0; font-size: 16px;">Ses Ayarları</h3>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 5px;">
+                <span id="sound-status-label" style="font-size: 13px;">Sesler Açık 🔊</span>
+                <button id="toggle-sound-btn" class="primary-button" style="width: auto; min-height: 32px; padding: 0 16px; font-size: 12px; margin: 0;" type="button">Kapat</button>
+              </div>
+              <div style="margin-top: 10px;">
+                <label for="sound-volume-slider" style="font-size: 12px; color: rgba(255,255,255,0.7); display: block; margin-bottom: 4px;">Ses Seviyesi</label>
+                <input type="range" id="sound-volume-slider" min="0" max="1" step="0.1" value="0.7" style="width: 100%; accent-color: var(--accent); cursor: pointer;">
+              </div>
+            </div>
+            
             <div class="market-item" id="settings-account-section" style="padding: 12px; gap: 8px;">
               <h3 style="margin: 0; font-size: 16px;">Oyuncu Hesabı</h3>
               <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.7); line-height: 1.35;">
@@ -371,6 +412,165 @@
 
           <div id="leaderboard-list" class="market-sell-list" style="max-height: 320px; flex-grow: 1; margin-top: 5px;">
             <div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.5);">Yükleniyor...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Süslemeler (Dekorasyon) Modalı -->
+      <section id="decorations-modal" class="market-modal">
+        <div class="market-content" style="width: min(450px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column;">
+          <button id="close-decorations" class="close-button" type="button">✕</button>
+          <h2>🧱 Çiftlik Süslemeleri</h2>
+          <p style="text-align: center; font-size: 12px; color: rgba(255,255,255,0.6); margin-top: -12px; margin-bottom: 15px;">Süslemeleri satın alıp düzenleme modunda kenarlara yerleştirin.</p>
+          
+          <button id="toggle-edit-mode-btn" class="primary-button" style="background: #3498db; margin-bottom: 15px; min-height: 40px; font-weight: bold; border: none; cursor: pointer;" type="button">Düzenleme Moduna Gir 🛠️</button>
+          
+          <div class="market-items" style="flex-grow: 1; overflow-y: auto; gap: 10px; display: flex; flex-direction: column;">
+            <!-- Çit -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Ahşap Çit 🚧</h3>
+                <p>Sınırları belirlemek için klasik çit.</p>
+              </div>
+              <button class="primary-button buy-deco-btn" data-deco="fence" type="button">Satın Al (50 🪙)</button>
+            </div>
+            <!-- Fener -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Bahçe Feneri 🏮</h3>
+                <p>Geceleri çevresini aydınlatır.</p>
+              </div>
+              <button class="primary-button buy-deco-btn" data-deco="lantern" type="button">Satın Al (100 🪙)</button>
+            </div>
+            <!-- Bank -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Ahşap Bank 🪑</h3>
+                <p>Çiftlikte dinlenmek için ideal.</p>
+              </div>
+              <button class="primary-button buy-deco-btn" data-deco="bench" type="button">Satın Al (150 🪙)</button>
+            </div>
+            <!-- Kuyu -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Taş Kuyu 🧱</h3>
+                <p>Rustik bir taş kuyu.</p>
+              </div>
+              <button class="primary-button buy-deco-btn" data-deco="well" type="button">Satın Al (500 🪙)</button>
+            </div>
+            <!-- Çiçek Tarhı -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Çiçek Tarhı 🌸</h3>
+                <p>Rengarenk çiçeklerin olduğu alan.</p>
+              </div>
+              <button class="primary-button buy-deco-btn" data-deco="flower_bed" type="button">Satın Al (80 🪙)</button>
+            </div>
+            <!-- Korkuluk -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Korkuluk 🌾</h3>
+                <p>Güzel bir tarla korkuluğu.</p>
+              </div>
+              <button class="primary-button buy-deco-btn" data-deco="scarecrow" type="button">Satın Al (200 🪙)</button>
+            </div>
+            <!-- Taş Yol -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Taş Yol 🛣️</h3>
+                <p>Doğal görünümlü taş patika.</p>
+              </div>
+              <button class="primary-button buy-deco-btn" data-deco="stone_path" type="button">Satın Al (30 🪙)</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Arkadaş Paneli Modalı -->
+      <section id="social-modal" class="market-modal">
+        <div class="market-content" style="width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column;">
+          <button id="close-social" class="close-button" type="button" aria-label="Kapat">✕</button>
+          <h2>👥 Arkadaşlar ve Sosyal</h2>
+          
+          <div class="market-item" style="padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <p style="margin: 0; font-size: 12px; color: rgba(255,255,255,0.7);">Kendi Arkadaş Kodunuz:</p>
+            <strong id="my-friend-code" style="font-size: 18px; color: var(--accent); letter-spacing: 2px;">-</strong>
+          </div>
+          
+          <div class="market-item" style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <h3 style="margin: 0; font-size: 14px;">Arkadaş Ekle</h3>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="add-friend-code-input" placeholder="KOD girin" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: rgba(0,0,0,0.3); color: white; text-transform: uppercase;" maxlength="6">
+              <button id="add-friend-btn" class="primary-button" style="width: auto; min-height: 38px; padding: 0 16px; margin: 0;" type="button">Ekle</button>
+            </div>
+          </div>
+
+          <div id="incoming-gifts-section" class="market-item" style="padding: 12px; display: none; flex-direction: column; gap: 6px;">
+            <h3 style="margin: 0; font-size: 14px; color: var(--accent);">🎁 Gelen Hediyeler</h3>
+            <div id="incoming-gifts-list" style="margin-top: 5px; display: flex; flex-direction: column; gap: 4px; font-size: 12px;"></div>
+            <button id="claim-all-gifts-btn" class="primary-button" style="margin-top: 8px; background: #f3ce3d; color: black; min-height: 32px;" type="button">Hediyeleri Al 🎉</button>
+          </div>
+          
+          <h3 style="margin: 10px 0 5px 0; font-size: 14px; font-weight: bold; color: var(--accent);">Arkadaşlarım</h3>
+          <div id="friends-list" class="market-sell-list" style="max-height: 200px; flex-grow: 1; overflow-y: auto;">
+            <div style="text-align: center; padding: 15px; color: rgba(255,255,255,0.5);">Yükleniyor...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Arkadaş Ziyareti Overlay -->
+      <div id="visit-overlay" class="visit-overlay" style="display: none; position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 1500; width: min(440px, 90%);">
+        <div class="visit-overlay-content" style="background: rgba(18, 28, 24, 0.96); border: 2px solid var(--accent); border-radius: 12px; padding: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); text-align: center; color: white;">
+          <div style="font-size: 18px; font-weight: bold; margin-bottom: 12px;">🏡 <span id="visit-owner-name">-</span>'in Çiftliği</div>
+          <div class="visit-actions" style="display: flex; gap: 8px; justify-content: center;">
+            <button id="visit-help-btn" class="primary-button" style="background: #4eb36a; font-size: 12px; min-height: 36px; padding: 0 12px; margin: 0; flex: 1;">Yardım Et 🤝<br><span style="font-size: 10px; opacity: 0.8;">(+10 XP)</span></button>
+            <button id="visit-gift-btn" class="primary-button" style="background: #3498db; font-size: 12px; min-height: 36px; padding: 0 12px; margin: 0; flex: 1;">Hediye Gönder 🎁</button>
+            <button id="visit-back-btn" class="primary-button" style="background: #e94042; font-size: 12px; min-height: 36px; padding: 0 12px; margin: 0; flex: 1;">Geri Dön 🏃‍♂️</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hediye Gönderme Modalı -->
+      <section id="gift-modal" class="market-modal" style="z-index: 1600;">
+        <div class="market-content" style="width: min(340px, calc(100vw - 32px));">
+          <button id="close-gift" class="close-button" type="button">✕</button>
+          <h3>Hediye Seç</h3>
+          <p style="font-size: 12px; color: rgba(255,255,255,0.7); margin-top: -8px;">Göndermek istediğiniz hediyeyi seçin:</p>
+          <div class="market-items" style="display: flex; flex-direction: column; gap: 8px;">
+            <button class="primary-button gift-option-btn" data-gift="fertilizer_basic" style="min-height: 42px; font-size: 13px; margin: 0;">🧪 Basit Gübre (1 adet)</button>
+            <button class="primary-button gift-option-btn" data-gift="fertilizer_super" style="min-height: 42px; font-size: 13px; margin: 0;">🧪 Süper Gübre (1 adet)</button>
+            <button class="primary-button gift-option-btn" data-gift="fertilizer_golden" style="min-height: 42px; font-size: 13px; margin: 0;">🧪 Altın Gübre (1 adet)</button>
+            <button class="primary-button gift-option-btn" data-gift="coins_50" style="min-height: 42px; font-size: 13px; margin: 0;">🪙 50 Altın (50 Altın ödersin)</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Gübre Uygulama Modalı (Bottom Sheet) -->
+      <section id="fertilizer-picker" class="seed-picker-modal">
+        <div class="seed-picker-backdrop"></div>
+        <div class="seed-picker-content">
+          <div class="sheet-handle"></div>
+          <h3>Gübre Uygula</h3>
+          <p style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: -8px; text-align: center;">Büyümeyi hızlandırmak için bir gübre seçin:</p>
+          <div class="seed-options" id="fertilizer-picker-options" style="display: flex; justify-content: center; gap: 10px; padding: 10px 0;">
+            <button class="seed-option-card fert-option-card" data-fertilizer="fertilizer_basic" type="button" style="flex: 1; min-width: 80px;">
+              <span class="seed-emoji">🧪</span>
+              <span class="seed-name" style="font-size: 11px;">Basit Gübre</span>
+              <span class="seed-cost" id="picker-fert-basic-count" style="font-size: 10px;">Adet: 0</span>
+              <span class="seed-time" style="font-size: 10px; color: var(--accent);">Hız: x2</span>
+            </button>
+            <button class="seed-option-card fert-option-card" data-fertilizer="fertilizer_super" type="button" style="flex: 1; min-width: 80px;">
+              <span class="seed-emoji">🧪⚡</span>
+              <span class="seed-name" style="font-size: 11px;">Süper Gübre</span>
+              <span class="seed-cost" id="picker-fert-super-count" style="font-size: 10px;">Adet: 0</span>
+              <span class="seed-time" style="font-size: 10px; color: var(--accent);">Hız: x3</span>
+            </button>
+            <button class="seed-option-card fert-option-card" data-fertilizer="fertilizer_golden" type="button" style="flex: 1; min-width: 80px;">
+              <span class="seed-emoji">✨🧪</span>
+              <span class="seed-name" style="font-size: 11px;">Altın Gübre</span>
+              <span class="seed-cost" id="picker-fert-golden-count" style="font-size: 10px;">Adet: 0</span>
+              <span class="seed-time" style="font-size: 10px; color: var(--accent);">Hız: x4 + Altın</span>
+            </button>
           </div>
         </div>
       </section>

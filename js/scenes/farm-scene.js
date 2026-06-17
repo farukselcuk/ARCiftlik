@@ -1,13 +1,15 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { Farm } from "../farm.js";
+import { Farm, FARM_EXPANSIONS } from "../farm.js";
 import { Character } from "../character.js";
 import { Pet } from "../pet.js";
 import { ChestSystem } from "../chests.js";
 import { SeasonSystem } from "../seasons.js";
 import { WeatherSystem } from "../weather.js";
 import { Input } from "../input.js";
-import { CROP_TYPES } from "../crops.js";
+import { CROP_TYPES, getStage } from "../crops.js";
+import { RainSystem, SnowSystem } from "../particles.js";
+import { createDecorationMesh, DECORATION_ZONES } from "../decorations.js";
 
 export class FarmScene {
   /**
@@ -42,6 +44,12 @@ export class FarmScene {
     this.plantedThisDrag = new Set();
 
     this._inputCleanups = [];
+
+    // Yeni Sosyal & Dekorasyon Durumları
+    this.isReadOnly = false;
+    this.editMode = false;
+    this.selectedDecoId = null;
+    this.indicatorsGroup = null;
   }
 
   init() {
@@ -99,6 +107,10 @@ export class FarmScene {
     this.controls.maxDistance = 4.0;
     this.controls.minPolarAngle = 0.15;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.05;
+
+    // Parçacık sistemleri
+    this.rainSystem = new RainSystem(this.scene);
+    this.snowSystem = new SnowSystem(this.scene);
     this.controls.rotateSpeed = 0.55;
     this.controls.zoomSpeed = 0.8;
     this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
@@ -246,12 +258,59 @@ export class FarmScene {
   }
 
   handleTapAt(point) {
+    if (this.isReadOnly) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğindesiniz. Sadece izleyebilirsiniz!" } }));
+      return;
+    }
+
     const rect = this.renderer.domElement.getBoundingClientRect();
     const mouse = new THREE.Vector2(
       (point.x / rect.width) * 2 - 1,
       -(point.y / rect.height) * 2 + 1
     );
     this.raycaster.setFromCamera(mouse, this.camera);
+
+    // 0. Düzenleme modu tıklamaları
+    if (this.editMode && this.indicatorsGroup) {
+      const hits = this.raycaster.intersectObjects(this.indicatorsGroup.children, true);
+      if (hits.length > 0) {
+        const hitObj = hits[0].object;
+        const col = hitObj.userData.col;
+        const row = hitObj.userData.row;
+        const isOccupied = hitObj.userData.isOccupied;
+        
+        if (isOccupied) {
+          const success = this.farm.removeDecorationAt(col, row);
+          if (success) {
+            window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Süsleme kaldırıldı! 🗑️" } }));
+            if (window.audioSystem) window.audioSystem.playPlace();
+            this.setEditMode(true, this.selectedDecoId); // Yenile
+          }
+        } else if (this.selectedDecoId) {
+          const DECORATION_COSTS = {
+            fence: 50, lantern: 100, bench: 150, well: 500, flower_bed: 80, scarecrow: 200, stone_path: 30
+          };
+          const cost = DECORATION_COSTS[this.selectedDecoId] || 0;
+          
+          window.dispatchEvent(new CustomEvent("spend-coins", {
+            detail: {
+              amount: cost,
+              callback: (success) => {
+                if (success) {
+                  const placed = this.farm.addDecoration(this.selectedDecoId, col, row);
+                  if (placed) {
+                    window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Süsleme yerleştirildi! ✨" } }));
+                    if (window.audioSystem) window.audioSystem.playPlace();
+                    this.setEditMode(true, this.selectedDecoId); // Yenile
+                  }
+                }
+              }
+            }
+          }));
+        }
+        return;
+      }
+    }
 
     // 1. Shiba köpeğine tıklandı mı?
     if (this.pet.purchased) {
@@ -353,7 +412,8 @@ export class FarmScene {
     if (this.farm.isEmpty(plotIndex)) {
       window.dispatchEvent(new CustomEvent("open-seed-picker", { detail: { plotIndex } }));
     } else {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: this.farm.describe(plotIndex) } }));
+      // Ekili ama olgunlaşmamış -> gübre uygulama modalı
+      window.dispatchEvent(new CustomEvent("open-fertilizer-picker", { detail: { plotIndex } }));
     }
   }
 
@@ -414,12 +474,13 @@ export class FarmScene {
       this.character.group.lookAt(plot.group.position.x, 0, plot.group.position.z);
       await this.character.playHarvest();
 
-      const harvested = this.farm.harvest(plotIndex);
-      if (harvested) {
-        // Altın ürün şansı %1
-        const isGolden = Math.random() < 0.01;
+      const result = this.farm.harvest(plotIndex);
+      if (result) {
+        const { crop, fertilizer } = result;
+        // Altın ürün şansı %1, Altın Gübre varsa %100!
+        const isGolden = (fertilizer === "fertilizer_golden") || (Math.random() < 0.01);
         window.dispatchEvent(new CustomEvent("crop-harvested", {
-          detail: { cropId: harvested.id, name: harvested.name, isGolden }
+          detail: { cropId: crop.id, name: crop.name, isGolden }
         }));
       }
     } catch (err) {
@@ -441,12 +502,164 @@ export class FarmScene {
       this.farm.seasonGrowMultiplier = window.seasonSystem.getGrowMultiplier();
     }
 
+    // Yağmur / Kar parçacıkları
+    if (window.weatherSystem && this.rainSystem && this.snowSystem) {
+      const currentW = window.weatherSystem.current;
+      const currentS = window.seasonSystem ? window.seasonSystem.current : "spring";
+      
+      if (currentW === "rainy" || currentW === "storm") {
+        this.rainSystem.start();
+        this.snowSystem.stop();
+      } else if (currentS === "winter") {
+        this.snowSystem.start();
+        this.rainSystem.stop();
+      } else {
+        this.rainSystem.stop();
+        this.snowSystem.stop();
+      }
+
+      this.rainSystem.update(dt);
+      this.snowSystem.update(dt);
+    }
+
     this.farm.update(realNow, this.camera);
-    this.character.update(dt);
-    this.pet.update(dt);
-    this.chestSystem.update(realNow);
+    if (!this.isReadOnly) {
+      this.character.update(dt);
+      this.pet.update(dt);
+      this.chestSystem.update(realNow);
+    }
 
     this.updateDayNightCycle(realNow);
+  }
+
+  // ── DEKORASYON & SOSYAL METODLARI ──────────────────────────────
+
+  setEditMode(active, decoId = null) {
+    this.editMode = active;
+    this.selectedDecoId = decoId;
+    
+    if (this.indicatorsGroup) {
+      this.scene.remove(this.indicatorsGroup);
+      this.indicatorsGroup.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      });
+      this.indicatorsGroup = null;
+    }
+
+    if (active) {
+      this.indicatorsGroup = new THREE.Group();
+      const valids = DECORATION_ZONES.getValidPositions(this.farm.gridRows, this.farm.gridCols);
+      const indicatorGeometry = new THREE.BoxGeometry(0.2, 0.01, 0.2);
+      
+      valids.forEach(pos => {
+        const isOccupied = this.farm.decorations.some(d => d.col === pos.col && d.row === pos.row);
+        let color = isOccupied ? 0xff3b30 : 0x34c759;
+        
+        const material = new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.45
+        });
+        
+        const mesh = new THREE.Mesh(indicatorGeometry, material);
+        const worldPos = this.farm.getDecorationPosition(pos.col, pos.row);
+        mesh.position.copy(worldPos);
+        mesh.userData.col = pos.col;
+        mesh.userData.row = pos.row;
+        mesh.userData.isOccupied = isOccupied;
+        
+        this.indicatorsGroup.add(mesh);
+      });
+      
+      this.scene.add(this.indicatorsGroup);
+    }
+  }
+
+  loadFriendData(friendSaveData) {
+    this.isReadOnly = true;
+    this.character.group.visible = false;
+    this.pet.group.visible = false;
+    this.chestSystem.group.visible = false;
+
+    // Düzenleme modundan çık
+    this.setEditMode(false);
+
+    try {
+      let expId = 1;
+      let unlockedPlots = 4;
+      let plotsData = [];
+      let decosData = [];
+
+      // saves/{uid} altındaki custom namespace'lerden veriyi al
+      if (friendSaveData["arciftlik:farm:state"]) {
+        const farmState = JSON.parse(friendSaveData["arciftlik:farm:state"]);
+        expId = farmState.expansionId || 1;
+        unlockedPlots = farmState.unlockedPlots || 4;
+        plotsData = farmState.plots || [];
+        decosData = farmState.decorations || [];
+      }
+
+      this.farm.expansionId = expId;
+      const exp = FARM_EXPANSIONS.find(e => e.id === expId) || FARM_EXPANSIONS[0];
+      this.farm.gridRows = exp.gridRows;
+      this.farm.gridCols = exp.gridCols;
+      this.farm.unlockedPlotsCount = unlockedPlots;
+
+      // Çiftlik gridini arkadaşa göre inşa et
+      this.farm.rebuildGrid();
+
+      // Arkadaşın bitkilerini yerleştir
+      plotsData.forEach((saved, index) => {
+        if (!saved || !this.farm.plots[index]) return;
+        const plot = this.farm.plots[index];
+        plot.cropId = saved.cropId;
+        plot.plantedAt = Number(saved.plantedAt) || Date.now();
+        plot.boostMs = Number(saved.boostMs) || 0;
+        plot.fertilizer = saved.fertilizer || null;
+        if (plot.cropId && CROP_TYPES[plot.cropId]) {
+          this.farm.refreshCropMesh(plot, getStage(this.farm.getProgress(plot, Date.now())));
+          this.farm.updateFertilizerVisual(plot);
+        }
+      });
+
+      // Arkadaşın süslemelerini yerleştir
+      this.farm.decorationMeshes.forEach(mesh => this.farm.group.remove(mesh));
+      this.farm.decorationMeshes = [];
+      this.farm.decorations = decosData;
+
+      decosData.forEach((deco, index) => {
+        const mesh = createDecorationMesh(deco.id);
+        const pos = this.farm.getDecorationPosition(deco.col, deco.row);
+        mesh.position.copy(pos);
+        mesh.userData.decorationIndex = index;
+        this.farm.group.add(mesh);
+        this.farm.decorationMeshes.push(mesh);
+      });
+
+    } catch (e) {
+      console.error("Arkadaş çiftliği yüklenemedi:", e);
+    }
+  }
+
+  restoreMyFarm() {
+    this.isReadOnly = false;
+    this.character.group.visible = true;
+    this.pet.group.visible = true;
+    this.chestSystem.group.visible = true;
+
+    this.farm.expansionId = this.farm.loadExpansionId();
+    const exp = FARM_EXPANSIONS.find(e => e.id === this.farm.expansionId) || FARM_EXPANSIONS[0];
+    this.farm.gridRows = exp.gridRows;
+    this.farm.gridCols = exp.gridCols;
+    this.farm.unlockedPlotsCount = this.farm.loadUnlockedPlotsCount();
+
+    this.farm.rebuildGrid();
+  }
+
+  dispose() {
+    if (this.rainSystem) this.rainSystem.dispose();
+    if (this.snowSystem) this.snowSystem.dispose();
   }
 
   updateDayNightCycle(now) {

@@ -60,6 +60,16 @@ export function sanitizeNickname(name) {
   return `${clean}${rand}`;
 }
 
+function generateFriendCode(uid) {
+  if (!uid) return "AAAAAA";
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = (hash * 31 + uid.charCodeAt(i)) | 0;
+  }
+  const code = Math.abs(hash).toString(36).toUpperCase().substring(0, 6);
+  return (code + "AAAAAA").substring(0, 6);
+}
+
 /**
  * Loads or creates user profile and empty save doc in Firestore
  * @param {object} user - Firebase user object
@@ -71,14 +81,23 @@ export async function loadOrCreateProfile(user) {
   
   let nickname;
   if (userSnap.exists()) {
-    nickname = userSnap.data().nickname;
+    const data = userSnap.data();
+    nickname = data.nickname;
+    if (!data.friendCode) {
+      await setDoc(userDocRef, {
+        friendCode: generateFriendCode(user.uid),
+        friends: data.friends || []
+      }, { merge: true });
+    }
   } else {
     nickname = sanitizeNickname(user.displayName || user.email.split("@")[0]);
     await setDoc(userDocRef, {
       userId: user.uid,
       nickname: nickname,
       email: user.email,
-      createdAt: new Date()
+      createdAt: new Date(),
+      friendCode: generateFriendCode(user.uid),
+      friends: []
     });
 
     // Create empty save doc
@@ -142,7 +161,9 @@ export async function registerWithEmail(email, password, nickname) {
     userId: user.uid,
     nickname: nickname,
     email: email,
-    createdAt: new Date()
+    createdAt: new Date(),
+    friendCode: generateFriendCode(user.uid),
+    friends: []
   });
 
   // Create empty save doc

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { CROP_TYPES, createCropMesh, getStage } from "./crops.js";
 import { GameStorage } from "./storage.js";
+import { createDecorationMesh, DECORATION_ZONES } from "./decorations.js";
 
 const PLOT_SIZE = 0.28;
 const PLOT_GAP = 0.035;
@@ -35,6 +36,8 @@ export class Farm {
     this.plots = [];
     this.particles = [];
     this.plotMeshes = [];
+    this.decorations = [];
+    this.decorationMeshes = [];
     /** @type {GameStorage} */
     this._storage = storage;
 
@@ -52,6 +55,7 @@ export class Farm {
 
     this.createBase();
     this.load();
+    this.loadDecorations();
   }
 
   get placed() {
@@ -131,7 +135,9 @@ export class Farm {
           group: plotGroup,
           progress,
           stage: 0,
-          lockMesh: lockMesh
+          lockMesh: lockMesh,
+          fertilizer: null,
+          borderMesh: border
         };
 
         this.plots.push(plot);
@@ -206,6 +212,8 @@ export class Farm {
     plot.plantedAt = Date.now();
     plot.boostMs = 0;
     plot.stage = 0;
+    plot.fertilizer = null;
+    this.updateFertilizerVisual(plot);
     this.refreshCropMesh(plot, 1);
     this.save();
     return crop;
@@ -223,16 +231,45 @@ export class Farm {
     return true;
   }
 
+  applyFertilizer(index, type) {
+    if (this.isLocked(index)) return false;
+    const plot = this.plots[index];
+    if (!plot || !plot.cropId || plot.fertilizer || this.getProgress(plot, Date.now()) >= 1) return false;
+    plot.fertilizer = type;
+    this.updateFertilizerVisual(plot);
+    this.save();
+    return true;
+  }
+
+  updateFertilizerVisual(plot) {
+    if (!plot.borderMesh) return;
+    if (plot.fertilizer) {
+      let color = 0xf2df99;
+      if (plot.fertilizer === "fertilizer_basic") color = 0x2ecc71;
+      else if (plot.fertilizer === "fertilizer_super") color = 0x3498db;
+      else if (plot.fertilizer === "fertilizer_golden") color = 0xf1c40f;
+      
+      plot.borderMesh.material = new THREE.LineBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.9
+      });
+    } else {
+      plot.borderMesh.material = outlineMaterial;
+    }
+  }
+
   harvest(index) {
     if (this.isLocked(index)) return null;
     const plot = this.plots[index];
     if (!plot || !plot.cropId || this.getProgress(plot, Date.now()) < 1) return null;
 
     const crop = CROP_TYPES[plot.cropId];
+    const fertilizer = plot.fertilizer;
     this.createHarvestParticles(plot.group.position);
     this.clearPlot(plot);
     this.save();
-    return crop;
+    return { crop, fertilizer };
   }
 
   isReadyToHarvest(index) {
@@ -250,7 +287,12 @@ export class Farm {
     const crop = CROP_TYPES[plot.cropId];
     const progress = this.getProgress(plot, Date.now());
     if (progress >= 1) return `${crop.name} hasada hazır!`;
-    return `${crop.name} %${Math.round(progress * 100)} büyüdü`;
+    let desc = `${crop.name} %${Math.round(progress * 100)} büyüdü`;
+    if (plot.fertilizer) {
+      const names = { fertilizer_basic: "Basit Gübre", fertilizer_super: "Süper Gübre", fertilizer_golden: "Altın Gübre" };
+      desc += ` (${names[plot.fertilizer]})`;
+    }
+    return desc;
   }
 
   update(now, camera) {
@@ -284,7 +326,17 @@ export class Farm {
   getProgress(plot, now) {
     const crop = CROP_TYPES[plot.cropId];
     if (!crop) return 0;
-    const growMultiplier = this.weatherGrowMultiplier * this.seasonGrowMultiplier;
+    
+    let fertMultiplier = 1.0;
+    if (plot.fertilizer === "fertilizer_basic") {
+      fertMultiplier = 2.0;
+    } else if (plot.fertilizer === "fertilizer_super") {
+      fertMultiplier = 3.0;
+    } else if (plot.fertilizer === "fertilizer_golden") {
+      fertMultiplier = 4.0;
+    }
+
+    const growMultiplier = this.weatherGrowMultiplier * this.seasonGrowMultiplier * fertMultiplier;
     const effectiveElapsed = (now - plot.plantedAt + plot.boostMs) * growMultiplier;
     return Math.min(1, effectiveElapsed / crop.growTime);
   }
@@ -308,6 +360,8 @@ export class Farm {
     plot.stage = 0;
     plot.cropMesh = null;
     plot.progress.visible = false;
+    plot.fertilizer = null;
+    this.updateFertilizerVisual(plot);
   }
 
   createWaterRipple(plot) {
@@ -364,7 +418,8 @@ export class Farm {
     const data = this.plots.map((plot) => ({
       cropId: plot.cropId,
       plantedAt: plot.plantedAt,
-      boostMs: plot.boostMs
+      boostMs: plot.boostMs,
+      fertilizer: plot.fertilizer || null
     }));
     this._storage.saveField("plots", data);
   }
@@ -373,12 +428,16 @@ export class Farm {
     try {
       const data = this._storage.loadField("plots") || [];
       data.forEach((saved, index) => {
-        if (!saved || !CROP_TYPES[saved.cropId] || !this.plots[index]) return;
+        if (!saved || !this.plots[index]) return;
         const plot = this.plots[index];
         plot.cropId = saved.cropId;
         plot.plantedAt = Number(saved.plantedAt) || Date.now();
         plot.boostMs = Number(saved.boostMs) || 0;
-        this.refreshCropMesh(plot, getStage(this.getProgress(plot, Date.now())));
+        plot.fertilizer = saved.fertilizer || null;
+        if (plot.cropId && CROP_TYPES[plot.cropId]) {
+          this.refreshCropMesh(plot, getStage(this.getProgress(plot, Date.now())));
+          this.updateFertilizerVisual(plot);
+        }
       });
     } catch {}
   }
@@ -432,6 +491,90 @@ export class Farm {
     }
   }
 
+  // ── DECORATIONS API ──────────────────────────────────────────
+
+  getDecorationPosition(col, row) {
+    const totalW = this.gridCols * PLOT_SIZE + (this.gridCols - 1) * PLOT_GAP;
+    const totalH = this.gridRows * PLOT_SIZE + (this.gridRows - 1) * PLOT_GAP;
+    const x = col * (PLOT_SIZE + PLOT_GAP) - totalW / 2 + PLOT_SIZE / 2;
+    const z = row * (PLOT_SIZE + PLOT_GAP) - totalH / 2 + PLOT_SIZE / 2;
+    return new THREE.Vector3(x, 0, z);
+  }
+
+  canPlaceDecoration(col, row) {
+    const valids = DECORATION_ZONES.getValidPositions(this.gridRows, this.gridCols);
+    const isValidZone = valids.some(p => p.col === col && p.row === row);
+    if (!isValidZone) return false;
+
+    const isOccupied = this.decorations.some(d => d.col === col && d.row === row);
+    return !isOccupied;
+  }
+
+  addDecoration(decoId, col, row) {
+    if (!this.canPlaceDecoration(col, row)) return false;
+
+    const deco = { id: decoId, col, row };
+    this.decorations.push(deco);
+    
+    const mesh = createDecorationMesh(decoId);
+    const pos = this.getDecorationPosition(col, row);
+    mesh.position.copy(pos);
+    mesh.userData.decorationIndex = this.decorations.length - 1;
+    
+    this.group.add(mesh);
+    this.decorationMeshes.push(mesh);
+    
+    this.saveDecorations();
+    return true;
+  }
+
+  removeDecorationAt(col, row) {
+    const idx = this.decorations.findIndex(d => d.col === col && d.row === row);
+    if (idx === -1) return false;
+
+    this.decorations.splice(idx, 1);
+    
+    // Find mesh and remove
+    const meshIdx = this.decorationMeshes.findIndex(m => m.userData.decorationIndex === idx);
+    if (meshIdx !== -1) {
+      const mesh = this.decorationMeshes[meshIdx];
+      this.group.remove(mesh);
+      this.decorationMeshes.splice(meshIdx, 1);
+    }
+
+    // Re-index decorationMeshes
+    this.decorationMeshes.forEach((m) => {
+      const origIdx = m.userData.decorationIndex;
+      if (origIdx > idx) {
+        m.userData.decorationIndex = origIdx - 1;
+      }
+    });
+
+    this.saveDecorations();
+    return true;
+  }
+
+  loadDecorations() {
+    this.decorationMeshes.forEach(mesh => this.group.remove(mesh));
+    this.decorationMeshes = [];
+
+    const data = this._storage.loadField("decorations") || [];
+    this.decorations = data;
+
+    data.forEach((deco, index) => {
+      const mesh = createDecorationMesh(deco.id);
+      const pos = this.getDecorationPosition(deco.col, deco.row);
+      mesh.position.copy(pos);
+      mesh.userData.decorationIndex = index;
+      this.group.add(mesh);
+      this.decorationMeshes.push(mesh);
+    });
+  }
+
+  saveDecorations() {
+    this._storage.saveField("decorations", this.decorations);
+  }
+
   // ── Çiftlik Genişletme API ─────────────────────────────────────
   
   loadExpansionId() {
@@ -449,6 +592,10 @@ export class Farm {
 
   expandFarm(expansionId) {
     if (expansionId < 1 || expansionId > 5) return false;
+
+    const oldRows = this.gridRows;
+    const oldCols = this.gridCols;
+
     this.expansionId = expansionId;
     this.saveExpansionId();
 
@@ -457,6 +604,14 @@ export class Farm {
     this.gridCols = exp.gridCols;
 
     this.unlockedPlotsCount = this.loadUnlockedPlotsCount();
+
+    // Recalculate decorations after expansion!
+    this.decorations = DECORATION_ZONES.recalculateAfterExpansion(
+      this.decorations,
+      oldRows, oldCols,
+      this.gridRows, this.gridCols
+    );
+    this.saveDecorations();
 
     // Three.js sahnelerini temizle ve baştan oluştur
     this.rebuildGrid();
@@ -473,5 +628,6 @@ export class Farm {
 
     this.createBase();
     this.load();
+    this.loadDecorations();
   }
 }
