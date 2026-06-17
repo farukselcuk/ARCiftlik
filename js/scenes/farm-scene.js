@@ -322,7 +322,8 @@ export class FarmScene {
           }
         } else if (this.selectedDecoId && this.selectedDecoId !== "remove_tool") {
           const DECORATION_COSTS = {
-            fence: 50, lantern: 100, bench: 150, well: 500, flower_bed: 80, scarecrow: 200, stone_path: 30
+            fence: 50, lantern: 100, bench: 150, well: 500, flower_bed: 80, scarecrow: 200, stone_path: 30,
+            oak_sapling: 120, pine_sapling: 150, apple_sapling: 200, orange_sapling: 220
           };
           const cost = DECORATION_COSTS[this.selectedDecoId] || 0;
           
