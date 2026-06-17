@@ -11,6 +11,7 @@ import { CROP_TYPES } from "./crops.js";
 import { setupViewportFix } from "./permissions.js";
 import { FARM_EXPANSIONS } from "./farm.js";
 import { Performance } from "./performance.js";
+import * as firebaseService from "./firebase-service.js";
 
 // Viewport düzeltmesi (Android klavye sorunu)
 setupViewportFix();
@@ -33,34 +34,129 @@ const barnStorage = new GameStorage("barn");
 const marketStorage = new GameStorage("market");
 const bakeryStorage = new GameStorage("bakery");
 
+// Paylaşımlı Global Modüller & Sistemler (Giriş yapıldığında ilklendirilecek)
+let inventory = null;
+let orders = null;
+let dailyLogin = null;
+let weatherSystem = null;
+let seasonSystem = null;
+let ui = null;
+let sceneManager = null;
+let character = null;
+
 // Göç / Bildirim kontrolü
 let _migrationNotice = null;
 globalStorage.onMigrationNotice = (oldVer, newVer) => {
   _migrationNotice = `Güncelleme geldi (v${oldVer} → v${newVer}), verileriniz güncellendi!`;
 };
-globalStorage.checkVersion();
-farmStorage.checkVersion();
-barnStorage.checkVersion();
-marketStorage.checkVersion();
-bakeryStorage.checkVersion();
 
-// Paylaşımlı Global Modüller
-const inventory = new Inventory(globalStorage);
-const orders = new Orders(globalStorage);
-const dailyLogin = new DailyLogin(globalStorage);
-const weatherSystem = new WeatherSystem(globalStorage);
-const seasonSystem = new SeasonSystem(globalStorage);
-
-window.seasonSystem = seasonSystem;
-window.weatherSystem = weatherSystem;
-window.cycleStartTime = Date.now();
-
-// UI Yönetimi
-const ui = new GameUI(globalStorage);
-
-// Scene Manager (Sahne yönetim sistemi)
-const sceneManager = new SceneManager(renderer, globalStorage, farmStorage, barnStorage, marketStorage, bakeryStorage);
-sceneManager.initAll();
+// Oyun ilklendirme fonksiyonu (Firebase Auth başarılı olunca çağrılır)
+async function initGame(user, nickname) {
+  console.log(`[GameInit] Oyuncu verileri yükleniyor: ${nickname} (${user.email})`);
+  
+  // Yükleme ekranı durumunu göster
+  document.querySelector("#auth-loading").style.display = "flex";
+  document.querySelector("#auth-forms").style.display = "none";
+  document.querySelector("#welcome-panel").style.display = "none";
+  
+  // Firestore'dan kayıtlı verileri çek ve in-memory cache'e yaz
+  let saveData = null;
+  try {
+    saveData = await firebaseService.loadGameData(user.uid);
+  } catch (err) {
+    console.error("[GameInit] Firestore veri yükleme hatası (Varsayılan değerlerle başlanıyor):", err);
+    // UI henüz ilklendirilmediği için toast'u gecikmeli gönderiyoruz
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Bağlantı hatası! Çevrimdışı mod aktif." } }));
+    }, 1500);
+  }
+  
+  if (saveData) {
+    console.log("[GameInit] Firestore kayıt verisi bulundu, belleğe yükleniyor.");
+    for (const key in saveData) {
+      if (key !== "updatedAt") {
+        window.gameInMemoryCache[key] = saveData[key];
+      }
+    }
+  } else {
+    console.log("[GameInit] Yeni oyuncu, varsayılan değerler oluşturuluyor.");
+  }
+  
+  // Sürümleri kontrol et ve varsayılanları merge et
+  globalStorage.checkVersion();
+  farmStorage.checkVersion();
+  barnStorage.checkVersion();
+  marketStorage.checkVersion();
+  bakeryStorage.checkVersion();
+  
+  // Modülleri instantiate et
+  inventory = new Inventory(globalStorage);
+  orders = new Orders(globalStorage);
+  dailyLogin = new DailyLogin(globalStorage);
+  weatherSystem = new WeatherSystem(globalStorage);
+  seasonSystem = new SeasonSystem(globalStorage);
+  
+  window.seasonSystem = seasonSystem;
+  window.weatherSystem = weatherSystem;
+  window.cycleStartTime = Date.now();
+  
+  // UI Yönetimi
+  ui = new GameUI(globalStorage);
+  
+  // Scene Manager (Sahne yönetim sistemi)
+  sceneManager = new SceneManager(renderer, globalStorage, farmStorage, barnStorage, marketStorage, bakeryStorage);
+  sceneManager.initAll();
+  
+  // Karakter Seviye / XP UI Senkronizasyonu
+  character = sceneManager.scenes.farm.character; // Karakter referansı
+  character.loadXP();
+  updateXPUI(character.level, character.xp, false);
+  
+  // Sistem Listener'larını bağla
+  weatherSystem.onWeatherChange = (newWeather, info) => {
+    if (ui) ui.showToast(`Hava değişti: ${info.icon} ${info.name}`);
+    updateWeatherUI();
+  };
+  
+  seasonSystem.onSeasonChange = (oldSeason, newSeason) => {
+    const info = SeasonSystem.SEASONS[newSeason];
+    if (ui) ui.showToast(`Mevsim değişti: ${info.icon} ${info.name}`);
+    updateSeasonUI();
+  };
+  
+  sceneManager.scenes.farm.chestSystem.onChestOpened = (loot) => {
+    if (loot.type === "gold") {
+      ui.updateCoins(loot.amount);
+      ui.showToast(`🎁 Sandıktan ${loot.amount} altın çıktı!`);
+    } else if (loot.type === "seed" && loot.cropId) {
+      inventory.add(loot.cropId, loot.amount || 1);
+      ui.showToast(`🎁 Sandıktan ${loot.cropId} tohumu çıktı!`);
+    } else if (loot.type === "fertilizer") {
+      ui.showToast(`🎁 Sandıktan gübre çıktı!`);
+    }
+    updateWarehouseUI();
+  };
+  
+  // Tohum seçim kutusu ve badges güncelle
+  populateSeedPicker();
+  updateWeatherUI();
+  updateSeasonUI();
+  
+  // Giriş ekranı verilerini güncelle
+  document.querySelector("#user-display-name").textContent = nickname;
+  document.querySelector("#settings-username").textContent = nickname;
+  document.querySelector("#settings-email").textContent = user.email;
+  
+  // Liderlik tablosu butonu durumunu kontrol et
+  setupLeaderboardUI();
+  
+  // Firestore Arkaplan Senkronizasyonunu Başlat
+  firebaseService.initSyncListener();
+  
+  // Yükleme bitti, karşılama ekranını göster
+  document.querySelector("#auth-loading").style.display = "none";
+  document.querySelector("#welcome-panel").style.display = "flex";
+}
 
 // Performans Modu Ayarlama
 let performanceConfig = null;
@@ -76,16 +172,54 @@ async function initPerformance() {
     }
   });
 
-  if (started) {
+  if (started && ui) {
     ui.showToast(`${performanceConfig.label} aktif!`);
   }
 }
 initPerformance();
 
-// Karakter Seviye / XP UI Senkronizasyonu
-const character = sceneManager.scenes.farm.character; // Karakter referansı
-character.loadXP();
-updateXPUI(character.level, character.xp, false);
+function getLevelUpReward(newLevel) {
+  let gold = newLevel * 100;
+  let rewardText = `${gold} Altın`;
+  let rewardIcon = "🪙";
+  let rewardItem = null;
+
+  if (newLevel === 2) {
+    rewardText += " & 2 Mısır Tohumu";
+    rewardIcon = "🌽";
+    rewardItem = { id: "corn", amount: 2 };
+  } else if (newLevel === 3) {
+    rewardText += " & 2 Çilek Tohumu";
+    rewardIcon = "🍓";
+    rewardItem = { id: "strawberry", amount: 2 };
+  } else if (newLevel === 4) {
+    rewardText += " & 2 Patates Tohumu";
+    rewardIcon = "🥔";
+    rewardItem = { id: "potato", amount: 2 };
+  } else if (newLevel === 5) {
+    rewardText += " & 2 Ayçiçeği Tohumu";
+    rewardIcon = "🌻";
+    rewardItem = { id: "sunflower", amount: 2 };
+  } else if (newLevel === 6) {
+    rewardText += " & 2 Domates Tohumu";
+    rewardIcon = "🍅";
+    rewardItem = { id: "tomato", amount: 2 };
+  } else if (newLevel === 7) {
+    rewardText += " & 2 Kabak Tohumu";
+    rewardIcon = "🎃";
+    rewardItem = { id: "pumpkin", amount: 2 };
+  } else if (newLevel === 8) {
+    rewardText += " & 2 Yaban Mersini Tohumu";
+    rewardIcon = "🫐";
+    rewardItem = { id: "blueberry", amount: 2 };
+  } else {
+    gold = newLevel * 150;
+    rewardText = `${gold} Altın`;
+    rewardIcon = "🪙";
+  }
+  
+  return { text: rewardText, icon: rewardIcon, amount: gold, extra: rewardItem };
+}
 
 function updateXPUI(level, xp, leveledUp) {
   const nextLevelXP = level * 100;
@@ -106,7 +240,28 @@ function updateXPUI(level, xp, leveledUp) {
   }
 
   if (leveledUp) {
-    ui.showToast(`🎉 Tebrikler! Seviye atladınız: Seviye ${level}`);
+    const reward = getLevelUpReward(level);
+    
+    // Modalı doldur
+    document.querySelector("#levelup-level-val").textContent = level;
+    document.querySelector("#levelup-reward-icon").textContent = reward.icon;
+    document.querySelector("#levelup-reward-text").textContent = reward.text;
+    
+    const modal = document.querySelector("#levelup-modal");
+    modal.classList.add("is-visible");
+    
+    document.querySelector("#claim-levelup-btn").onclick = (e) => {
+      e.stopPropagation();
+      
+      // Ödülleri ver
+      ui.updateCoins(reward.amount);
+      if (reward.extra) {
+        inventory.add(reward.extra.id, reward.extra.amount);
+      }
+      
+      modal.classList.remove("is-visible");
+      ui.showToast(`🎁 Seviye ${level} ödülleri alındı!`);
+    };
   }
 }
 
@@ -141,7 +296,6 @@ window.addEventListener("toast", (e) => {
 
 window.addEventListener("open-market-panel", () => {
   updateMarketUI();
-  updateMarketSellList();
   document.querySelector("#market-panel").classList.add("is-visible");
 });
 
@@ -160,7 +314,7 @@ window.addEventListener("crop-harvested", (e) => {
     character.addXP(5, "harvest");
   }
 
-  updateMarketSellList();
+  updateWarehouseUI();
   updateOrdersUI();
 });
 
@@ -355,43 +509,23 @@ function checkDailyLogin() {
   }
 }
 
-// Hava Durumu ve Mevsim UI Güncellemeleri
-weatherSystem.onWeatherChange = (newWeather, info) => {
-  ui.showToast(`Hava değişti: ${info.icon} ${info.name}`);
-  updateWeatherUI();
-};
-
-seasonSystem.onSeasonChange = (oldSeason, newSeason) => {
-  const info = SeasonSystem.SEASONS[newSeason];
-  ui.showToast(`Mevsim değişti: ${info.icon} ${info.name}`);
-  updateSeasonUI();
-};
+// Hava Durumu ve Mevsim UI Güncellemeleri (initGame içinde bağlanıyor)
 
 function updateWeatherUI() {
+  if (!weatherSystem) return;
   const weather = weatherSystem.getCurrentWeather();
   document.querySelector("#weather-badge").textContent = `${weather.icon}`;
   document.querySelector("#weather-badge").title = `Hava Durumu: ${weather.name}`;
 }
 
 function updateSeasonUI() {
+  if (!seasonSystem) return;
   const season = seasonSystem.getCurrentSeason();
   document.querySelector("#season-badge").textContent = `${season.icon}`;
   document.querySelector("#season-badge").title = `Mevsim: ${season.name}`;
 }
 
-// Sandık açılma ödülleri
-sceneManager.scenes.farm.chestSystem.onChestOpened = (loot) => {
-  if (loot.type === "gold") {
-    ui.updateCoins(loot.amount);
-    ui.showToast(`🎁 Sandıktan ${loot.amount} altın çıktı!`);
-  } else if (loot.type === "seed" && loot.cropId) {
-    inventory.add(loot.cropId, loot.amount || 1);
-    ui.showToast(`🎁 Sandıktan ${loot.cropId} tohumu çıktı!`);
-  } else if (loot.type === "fertilizer") {
-    ui.showToast(`🎁 Sandıktan gübre çıktı!`);
-  }
-  updateMarketSellList();
-};
+// Sandık açılma ödülleri (initGame içinde bağlanıyor)
 
 // Başlat Buton Etkileşimi
 let started = false;
@@ -413,6 +547,7 @@ function stopZooming() {
 }
 
 function zoomCamera(factor) {
+  if (!sceneManager) return;
   const activeScene = sceneManager.activeScene;
   if (!activeScene || !activeScene.controls) return;
   const controls = activeScene.controls;
@@ -432,16 +567,20 @@ startButton.addEventListener("click", (e) => {
   started = true;
   document.body.classList.add("is-running");
   
-  if (performanceConfig) {
+  if (sceneManager) {
+    sceneManager.activeScene.resume();
+  }
+  
+  if (performanceConfig && ui) {
     ui.showToast(`${performanceConfig.label} aktif!`);
-  } else {
+  } else if (ui) {
     ui.showToast("Oyun Başlıyor…");
   }
 
   // Günlük girişi denetle
   setTimeout(checkDailyLogin, 1000);
 
-  if (_migrationNotice) {
+  if (_migrationNotice && ui) {
     setTimeout(() => ui.showToast(_migrationNotice), 1500);
     _migrationNotice = null;
   }
@@ -449,8 +588,12 @@ startButton.addEventListener("click", (e) => {
 
 // Event Bindings
 window.addEventListener("resize", () => {
-  sceneManager.resize(window.innerWidth, window.innerHeight);
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (sceneManager) {
+    sceneManager.resize(window.innerWidth, window.innerHeight);
+  }
+  if (renderer) {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
 });
 
 // Zoom buton olayları
@@ -470,16 +613,16 @@ zoomOutBtn.addEventListener("pointercancel", (e) => { e.stopPropagation(); stopZ
 // Reset/Taşıma butonu
 document.querySelector("#reset-farm").addEventListener("click", (e) => {
   e.stopPropagation();
-  if (sceneManager.activeSceneKey === "farm") {
+  if (sceneManager && sceneManager.activeSceneKey === "farm") {
     sceneManager.scenes.farm.farm.resetUnlockedPlots();
     sceneManager.scenes.farm.character.reset();
     sceneManager.scenes.farm.pet.reset();
-    inventory.reset();
-    orders.reset();
-    ui.refillIfStuck();
-    updateMarketSellList();
+    if (inventory) inventory.reset();
+    if (orders) orders.reset();
+    if (ui) ui.refillIfStuck();
+    updateWarehouseUI();
     updateOrdersUI();
-    ui.showToast("Çiftlik sıfırlandı!");
+    if (ui) ui.showToast("Çiftlik sıfırlandı!");
   }
 });
 
@@ -494,7 +637,6 @@ const buyPlotBtn = document.querySelector("#buy-plot");
 openMarketBtn.addEventListener("click", (e) => {
   e.stopPropagation();
   updateMarketUI();
-  updateMarketSellList();
   marketPanel.classList.add("is-visible");
 });
 
@@ -503,8 +645,30 @@ closeMarketBtn.addEventListener("click", (e) => {
   marketPanel.classList.remove("is-visible");
 });
 
+// Warehouse Modal
+const warehousePanel = document.querySelector("#warehouse-panel");
+const openWarehouseBtn = document.querySelector("#open-warehouse");
+const closeWarehouseBtn = document.querySelector("#close-warehouse");
+
+openWarehouseBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  updateWarehouseUI();
+  warehousePanel.classList.add("is-visible");
+});
+
+closeWarehouseBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  warehousePanel.classList.remove("is-visible");
+});
+
+window.addEventListener("open-warehouse-panel", () => {
+  updateWarehouseUI();
+  warehousePanel.classList.add("is-visible");
+});
+
 buyPlotBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (!sceneManager || !ui) return;
   const count = sceneManager.scenes.farm.farm.unlockedPlotsCount;
   const maxPlots = sceneManager.scenes.farm.farm.maxPlotsOfCurrentExpansion();
   if (count >= maxPlots) return;
@@ -525,6 +689,7 @@ buyPlotBtn.addEventListener("click", (e) => {
 const buyPetBtn = document.querySelector("#buy-pet");
 buyPetBtn.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (!sceneManager || !ui) return;
   const petData = globalStorage.loadField("pet") || {};
   if (petData.purchased) return;
   
@@ -686,8 +851,8 @@ function updateMarketUI() {
   }
 }
 
-function updateMarketSellList() {
-  const sellListEl = document.querySelector("#market-sell-list");
+function updateWarehouseUI() {
+  const sellListEl = document.querySelector("#warehouse-sell-list");
   if (!sellListEl) return;
   sellListEl.innerHTML = "";
   
@@ -721,7 +886,7 @@ function updateMarketSellList() {
         ui.updateCoins(basePrice);
         ui.showToast(`1 adet ${CROP_TYPES[cropId].name} satıldı!`);
         character.addXP(3, "sell");
-        updateMarketSellList();
+        updateWarehouseUI();
         updateOrdersUI();
       }
     });
@@ -753,7 +918,7 @@ function updateMarketSellList() {
         ui.updateCoins(goldenPrice);
         ui.showToast(`✨ Altın ${CROP_TYPES[cropId].name} satıldı! +${goldenPrice} 🪙`);
         character.addXP(10, "sell_golden");
-        updateMarketSellList();
+        updateWarehouseUI();
         updateOrdersUI();
       }
     });
@@ -808,19 +973,20 @@ function updateOrdersUI() {
         ui.showToast(`Sipariş tamamlandı! +${fulfilled.reward} 🪙`);
         character.addXP(15, "order");
         updateOrdersUI();
-        updateMarketSellList();
+        updateWarehouseUI();
       }
     });
   });
 }
 
-// İlklendirme çağrıları
-updateWeatherUI();
-updateSeasonUI();
-
 // Render Loop
 let lastTime = performance.now();
 function render() {
+  if (!started || !sceneManager || !weatherSystem || !seasonSystem) {
+    requestAnimationFrame(render);
+    return;
+  }
+
   const now = performance.now();
   const dt = (now - lastTime) / 1000;
   lastTime = now;
@@ -835,3 +1001,196 @@ function render() {
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
+
+// ── Authentication UI Controller ─────────────────────────────────
+function setupAuthUI() {
+  const tabLogin = document.querySelector("#tab-login");
+  const tabRegister = document.querySelector("#tab-register");
+  const loginForm = document.querySelector("#login-form");
+  const registerForm = document.querySelector("#register-form");
+  const authErrorMsg = document.querySelector("#auth-error-msg");
+  
+  tabLogin.addEventListener("click", () => {
+    tabLogin.classList.add("active");
+    tabRegister.classList.remove("active");
+    loginForm.style.display = "flex";
+    registerForm.style.display = "none";
+    authErrorMsg.style.display = "none";
+  });
+  
+  tabRegister.addEventListener("click", () => {
+    tabRegister.classList.add("active");
+    tabLogin.classList.remove("active");
+    registerForm.style.display = "flex";
+    loginForm.style.display = "none";
+    authErrorMsg.style.display = "none";
+  });
+  
+  // Login Form Submission
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.querySelector("#login-email").value;
+    const pass = document.querySelector("#login-password").value;
+    
+    showSpinner("Giriş yapılıyor...");
+    try {
+      await firebaseService.signInWithEmail(email, pass);
+    } catch (err) {
+      showError(translateAuthError(err.code));
+    }
+  });
+  
+  // Register Form Submission
+  registerForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const nickname = document.querySelector("#register-nickname").value;
+    const email = document.querySelector("#register-email").value;
+    const pass = document.querySelector("#register-password").value;
+    
+    if (nickname.length < 3 || nickname.length > 15) {
+      showError("Kullanıcı adı 3-15 karakter olmalıdır.");
+      return;
+    }
+    
+    showSpinner("Hesap oluşturuluyor...");
+    try {
+      await firebaseService.registerWithEmail(email, pass, nickname);
+    } catch (err) {
+      showError(translateAuthError(err.code));
+    }
+  });
+  
+  // Google Sign-In
+  document.querySelector("#google-signin-btn").addEventListener("click", async () => {
+    showSpinner("Google ile giriş yapılıyor...");
+    try {
+      await firebaseService.signInWithGoogle();
+    } catch (err) {
+      showError(translateAuthError(err.code));
+    }
+  });
+  
+  // Logout Triggering
+  const handleLogout = async () => {
+    try {
+      await firebaseService.signOutUser();
+    } catch (err) {
+      console.error("[Auth] Çıkış yapılırken hata:", err);
+    }
+  };
+  document.querySelector("#auth-signout-btn").addEventListener("click", handleLogout);
+  document.querySelector("#settings-signout-btn").addEventListener("click", handleLogout);
+  
+  function showSpinner(text) {
+    document.querySelector("#auth-forms").style.display = "none";
+    const loading = document.querySelector("#auth-loading");
+    loading.style.display = "flex";
+    document.querySelector("#auth-loading-text").textContent = text;
+    authErrorMsg.style.display = "none";
+  }
+  
+  function showError(msg) {
+    document.querySelector("#auth-loading").style.display = "none";
+    document.querySelector("#auth-forms").style.display = "block";
+    authErrorMsg.textContent = msg;
+    authErrorMsg.style.display = "block";
+  }
+  
+  function translateAuthError(code) {
+    switch (code) {
+      case "auth/invalid-email":
+        return "Geçersiz e-posta adresi formatı.";
+      case "auth/user-disabled":
+        return "Bu kullanıcı hesabı askıya alınmış.";
+      case "auth/user-not-found":
+        return "Bu e-posta adresine kayıtlı kullanıcı bulunamadı.";
+      case "auth/wrong-password":
+        return "Hatalı şifre girdiniz.";
+      case "auth/email-already-in-use":
+        return "Bu e-posta adresi zaten kullanımda.";
+      case "auth/weak-password":
+        return "Şifreniz en az 6 karakter olmalıdır.";
+      case "auth/popup-closed-by-user":
+        return "Google penceresi kapatıldı.";
+      case "auth/network-request-failed":
+        return "Ağ hatası. Lütfen bağlantınızı kontrol edin.";
+      default:
+        return `Kimlik doğrulama hatası: ${code}`;
+    }
+  }
+}
+
+// ── Leaderboard UI Controller ────────────────────────────────────
+function setupLeaderboardUI() {
+  const panel = document.querySelector("#leaderboard-panel");
+  const openBtn = document.querySelector("#open-leaderboard");
+  const closeBtn = document.querySelector("#close-leaderboard");
+  const listEl = document.querySelector("#leaderboard-list");
+  
+  openBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    panel.classList.add("is-visible");
+    listEl.innerHTML = `<div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.5);">Yükleniyor...</div>`;
+    
+    try {
+      const records = await firebaseService.getLeaderboardData();
+      listEl.innerHTML = "";
+      
+      if (records.length === 0) {
+        listEl.innerHTML = `<div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.5);">Henüz skor kaydı yok.</div>`;
+        return;
+      }
+      
+      const currentUid = firebaseService.auth.currentUser ? firebaseService.auth.currentUser.uid : null;
+      
+      records.forEach((row, index) => {
+        const rank = index + 1;
+        let medal = rank.toString();
+        if (rank === 1) medal = "🥇";
+        else if (rank === 2) medal = "🥈";
+        else if (rank === 3) medal = "🥉";
+        
+        const isCurrent = row.userId === currentUid;
+        const rowEl = document.createElement("div");
+        rowEl.className = `leaderboard-row ${isCurrent ? "current-user" : ""}`;
+        rowEl.innerHTML = `
+          <span class="leaderboard-rank">${medal}</span>
+          <span class="leaderboard-name">${row.nickname || "Çiftçi"} ${isCurrent ? "(Sen)" : ""}</span>
+          <span class="leaderboard-level">${row.level || 1}</span>
+          <span class="leaderboard-score">${row.coins || 0}</span>
+        `;
+        listEl.appendChild(rowEl);
+      });
+    } catch (err) {
+      console.error("[Leaderboard] Yükleme hatası:", err);
+      listEl.innerHTML = `<div style="text-align: center; padding: 20px; color: #ff6b6b;">Skorlar yüklenirken hata oluştu.</div>`;
+    }
+  });
+  
+  closeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    panel.classList.remove("is-visible");
+  });
+}
+
+// ── Firebase Initialization & Session Management ────────────────
+setupAuthUI();
+
+firebaseService.initFirebase((user, nickname) => {
+  if (user) {
+    // Oturum açık, oyunu ilklendir
+    initGame(user, nickname);
+  } else {
+    // Oturum kapalı, login formunu göster ve bellek temizliği yap
+    document.querySelector("#welcome-panel").style.display = "none";
+    document.querySelector("#auth-loading").style.display = "none";
+    document.querySelector("#auth-forms").style.display = "block";
+    
+    window.gameInMemoryCache = {};
+    
+    // Eğer oyun başladıktan sonra çıkış yapıldıysa sayfayı yenile
+    if (started) {
+      window.location.reload();
+    }
+  }
+});

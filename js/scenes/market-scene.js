@@ -271,7 +271,7 @@ export class MarketScene {
 
     // Herhangi bir market elemanına veya tüccara tıklandıysa satıcıyı tetikle
     window.dispatchEvent(new CustomEvent("open-market-panel"));
-    window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Hoş geldiniz! Ne satın almak veya satmak istersiniz? 🛒" } }));
+    window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Hoş geldiniz! Çiftliğinizi büyütmek için ürünlerimize göz atın! 🛒" } }));
 
     // Tüccara selam verme/hoplama animasyonu
     if (this.merchantGroup) {

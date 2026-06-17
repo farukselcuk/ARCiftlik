@@ -55,7 +55,7 @@ export class BakeryScene {
   resume() {
     this.active = true;
     this.controls.enabled = true;
-    document.body.className = "is-running no-camera night-time";
+    document.body.className = "is-running no-camera bakery-glow";
   }
 
   pause() {

@@ -38,7 +38,6 @@ export class SceneManager {
     for (const key in this.scenes) {
       this.scenes[key].init();
     }
-    this.activeScene.resume();
   }
 
   /** Tab bar etkileşimlerini ayarla */

@@ -336,7 +336,7 @@ export class BarnScene {
 
     if (name === "barn-door" || hits[0].object.name === "barn-door") {
       // Depoyu aç
-      window.dispatchEvent(new CustomEvent("open-market-panel"));
+      window.dispatchEvent(new CustomEvent("open-warehouse-panel"));
       window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Depo kapıları açıldı! 📦" } }));
       return;
     }

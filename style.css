@@ -59,24 +59,28 @@ body.is-camera-active #camera-feed {
 
 /* When camera is unavailable (iOS permission denied, desktop, etc.) */
 body.no-camera {
-  background: radial-gradient(ellipse at 50% 65%, #2a5f45 0%, #10261d 55%, #08120e 100%);
+  background: radial-gradient(circle at 50% 25%, #a5dbf7 0%, #5c9c6f 50%, #224e30 100%);
   transition: background 4000ms ease-in-out;
 }
 
 body.no-camera.sunset-time {
-  background: radial-gradient(ellipse at 50% 65%, #663333 0%, #291414 55%, #0f0707 100%);
+  background: radial-gradient(circle at 50% 25%, #d35400 0%, #5c2c16 65%, #1f0d06 100%);
 }
 
 body.no-camera.night-time {
-  background: radial-gradient(ellipse at 50% 65%, #0d121f 0%, #05070d 55%, #020305 100%);
+  background: radial-gradient(circle at 50% 25%, #2c2543 0%, #151b2d 60%, #0a0d16 100%);
 }
 
 body.no-camera.sunrise-time {
-  background: radial-gradient(ellipse at 50% 65%, #5a452d 0%, #241a10 55%, #0c0805 100%);
+  background: radial-gradient(circle at 50% 25%, #e67e22 0%, #5a452d 55%, #15100a 100%);
 }
 
 body.no-camera.day-time {
-  background: radial-gradient(ellipse at 50% 65%, #2a5f45 0%, #10261d 55%, #08120e 100%);
+  background: radial-gradient(circle at 50% 25%, #a5dbf7 0%, #5c9c6f 50%, #224e30 100%);
+}
+
+body.no-camera.bakery-glow {
+  background: radial-gradient(circle at 50% 25%, #e59866 0%, #6e2c00 60%, #210f04 100%);
 }
 
 body.no-camera #camera-feed {
@@ -1104,6 +1108,14 @@ body.is-running .bottom-bar {
   display: flex;
   z-index: 1000;
   backdrop-filter: blur(20px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+body.is-running .tab-bar {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .tab-button {
@@ -1143,4 +1155,229 @@ body.is-running .bottom-bar {
 /* Adjust zoom buttons to be slightly higher */
 .control-buttons {
   gap: 6px;
+}
+
+/* ── Auth and Leaderboard Styles ────────────────────────────────── */
+
+.auth-title {
+  margin-bottom: 24px !important;
+  color: var(--accent);
+  text-shadow: 0 2px 10px rgba(255, 212, 90, 0.25);
+  font-size: 26px !important;
+}
+
+.auth-loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-left-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.auth-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.auth-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 800;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.auth-tab-btn.active {
+  background: var(--panel-solid);
+  color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-group label {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.input-group input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--line);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  margin: 16px 0;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.auth-divider span {
+  padding: 0 10px;
+}
+
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #ffffff;
+  color: #333333;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.google-btn:hover {
+  background: #f1f1f1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.google-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.auth-error {
+  background: rgba(233, 64, 66, 0.15);
+  border: 1px solid rgba(233, 64, 66, 0.3);
+  color: #ff6b6b;
+  font-size: 12px;
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 14px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.welcome-text {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.welcome-text span {
+  color: var(--accent);
+}
+
+.logout-btn {
+  background: rgba(233, 64, 66, 0.15) !important;
+  color: #ff6b6b !important;
+  border-color: rgba(233, 64, 66, 0.3) !important;
+}
+
+.logout-btn:hover {
+  background: rgba(233, 64, 66, 0.25) !important;
+}
+
+/* Leaderboard Specific Styles */
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s ease;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.leaderboard-row.current-user {
+  background: rgba(78, 179, 106, 0.12);
+  border: 1px solid rgba(78, 179, 106, 0.4);
+  border-radius: 8px;
+  margin: 4px 0;
+  box-shadow: 0 0 10px rgba(78, 179, 106, 0.15);
+}
+
+.leaderboard-rank {
+  flex: 0 0 50px;
+  text-align: center;
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.leaderboard-name {
+  flex: 1;
+  margin-left: 10px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-level {
+  flex: 0 0 60px;
+  text-align: center;
+  font-weight: bold;
+  color: var(--accent);
+}
+
+.leaderboard-score {
+  flex: 0 0 90px;
+  text-align: right;
+  font-weight: 900;
 }

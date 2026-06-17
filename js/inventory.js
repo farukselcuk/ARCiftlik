@@ -19,17 +19,30 @@ export class Inventory {
         return {
           wheat: Number(saved.wheat) || 0,
           corn: Number(saved.corn) || 0,
+          carrot: Number(saved.carrot) || 0,
           strawberry: Number(saved.strawberry) || 0,
+          potato: Number(saved.potato) || 0,
           sunflower: Number(saved.sunflower) || 0,
-          // Altın ürün desteği (Faz 6)
+          tomato: Number(saved.tomato) || 0,
+          pumpkin: Number(saved.pumpkin) || 0,
+          blueberry: Number(saved.blueberry) || 0,
+          
           golden_wheat: Number(saved.golden_wheat) || 0,
           golden_corn: Number(saved.golden_corn) || 0,
+          golden_carrot: Number(saved.golden_carrot) || 0,
           golden_strawberry: Number(saved.golden_strawberry) || 0,
-          golden_sunflower: Number(saved.golden_sunflower) || 0
+          golden_potato: Number(saved.golden_potato) || 0,
+          golden_sunflower: Number(saved.golden_sunflower) || 0,
+          golden_tomato: Number(saved.golden_tomato) || 0,
+          golden_pumpkin: Number(saved.golden_pumpkin) || 0,
+          golden_blueberry: Number(saved.golden_blueberry) || 0
         };
       }
     } catch {}
-    return { wheat: 0, corn: 0, strawberry: 0, sunflower: 0, golden_wheat: 0, golden_corn: 0, golden_strawberry: 0, golden_sunflower: 0 };
+    return {
+      wheat: 0, corn: 0, carrot: 0, strawberry: 0, potato: 0, sunflower: 0, tomato: 0, pumpkin: 0, blueberry: 0,
+      golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0
+    };
   }
 
   save() {
@@ -62,7 +75,10 @@ export class Inventory {
   }
 
   reset() {
-    this.items = { wheat: 0, corn: 0, strawberry: 0, sunflower: 0, golden_wheat: 0, golden_corn: 0, golden_strawberry: 0, golden_sunflower: 0 };
+    this.items = {
+      wheat: 0, corn: 0, carrot: 0, strawberry: 0, potato: 0, sunflower: 0, tomato: 0, pumpkin: 0, blueberry: 0,
+      golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0
+    };
     this.save();
   }
 }

@@ -14,8 +14,8 @@ const DEFAULTS_BY_NAMESPACE = {
     level: 1,
     xp: 0,
     inventory: {
-      wheat: 0, corn: 0, strawberry: 0, sunflower: 0,
-      golden_wheat: 0, golden_corn: 0, golden_strawberry: 0, golden_sunflower: 0
+      wheat: 0, corn: 0, carrot: 0, strawberry: 0, potato: 0, sunflower: 0, tomato: 0, pumpkin: 0, blueberry: 0,
+      golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0
     },
     pet: { purchased: false },
     dailyLogin: { streak: 0, lastLoginDate: null, claimed: false },
@@ -46,23 +46,8 @@ const LEGACY_KEYS = [
   "arciftlik:version"
 ];
 
-function detectBackend() {
-  try {
-    const testKey = "__arciftlik_test__";
-    localStorage.setItem(testKey, "1");
-    localStorage.removeItem(testKey);
-    return "localStorage";
-  } catch {}
-
-  try {
-    const testKey = "__arciftlik_test__";
-    sessionStorage.setItem(testKey, "1");
-    sessionStorage.removeItem(testKey);
-    return "sessionStorage";
-  } catch {}
-
-  return "memory";
-}
+// Initialize the global in-memory cache
+window.gameInMemoryCache = window.gameInMemoryCache || {};
 
 export class GameStorage {
   /**
@@ -70,55 +55,37 @@ export class GameStorage {
    */
   constructor(namespace = "global") {
     this.namespace = namespace;
-    this.backendType = detectBackend();
-    this._memoryStore = {};
+    this.backendType = "memory";
     this.onMigrationNotice = null;
 
     this.storageKey = `arciftlik:${namespace}:state`;
     this.versionKey = `arciftlik:${namespace}:version`;
     this.defaultState = DEFAULTS_BY_NAMESPACE[namespace] || DEFAULTS_BY_NAMESPACE.global;
 
-    console.log(`[GameStorage] Namespace: ${namespace}, Backend: ${this.backendType}`);
+    console.log(`[GameStorage] Namespace: ${namespace}, Backend: Firestore Memory Cache`);
   }
 
   _read(key) {
-    try {
-      if (this.backendType === "localStorage") return localStorage.getItem(key);
-      if (this.backendType === "sessionStorage") return sessionStorage.getItem(key);
-      return this._memoryStore[key] ?? null;
-    } catch (err) {
-      console.warn(`[GameStorage] Okuma hatası (${key}):`, err);
-      return null;
-    }
+    return window.gameInMemoryCache[key] ?? null;
   }
 
   _write(key, value) {
-    try {
-      if (this.backendType === "localStorage") {
-        localStorage.setItem(key, value);
-      } else if (this.backendType === "sessionStorage") {
-        sessionStorage.setItem(key, value);
-      } else {
-        this._memoryStore[key] = value;
-      }
-    } catch (err) {
-      console.warn(`[GameStorage] Yazma hatası (${key}):`, err);
-      if (this.backendType === "localStorage") {
-        this.backendType = "sessionStorage";
-        this._write(key, value);
-      } else {
-        this.backendType = "memory";
-        this._memoryStore[key] = value;
-      }
+    const oldValue = window.gameInMemoryCache[key];
+    if (oldValue !== value) {
+      window.gameInMemoryCache[key] = value;
+      window.dispatchEvent(new CustomEvent("game-state-changed", {
+        detail: { namespace: this.namespace, key, value }
+      }));
     }
   }
 
   _remove(key) {
-    try {
-      if (this.backendType === "localStorage") localStorage.removeItem(key);
-      else if (this.backendType === "sessionStorage") sessionStorage.removeItem(key);
-      else delete this._memoryStore[key];
-    } catch {}
+    if (window.gameInMemoryCache[key] !== undefined) {
+      delete window.gameInMemoryCache[key];
+      window.dispatchEvent(new CustomEvent("game-state-changed", {
+        detail: { namespace: this.namespace, key, value: null }
+      }));
+    }
   }
 
   /**
