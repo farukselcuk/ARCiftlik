@@ -37,7 +37,7 @@ export class GameUI {
       this.syncSelection();
     });
 
-    document.querySelector("#reset-farm").addEventListener("click", (event) => {
+    document.querySelector("#reset-farm")?.addEventListener("click", (event) => {
       event.stopPropagation();
       this.onReset?.();
     });
