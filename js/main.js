@@ -1169,8 +1169,12 @@ function updateDecorationsUI() {
   
   document.querySelectorAll(".buy-deco-btn").forEach(btn => {
     const type = btn.dataset.deco;
-    const cost = DECORATION_COSTS[type] || 0;
-    btn.disabled = ui.coins < cost;
+    if (type === "remove_tool") {
+      btn.disabled = false;
+    } else {
+      const cost = DECORATION_COSTS[type] || 0;
+      btn.disabled = ui.coins < cost;
+    }
   });
 
   const isEdit = sceneManager.scenes.farm.editMode;
@@ -1190,7 +1194,7 @@ if (toggleEditModeBtn) {
     updateDecorationsUI();
     if (nextEditMode) {
       decorationsModal.classList.remove("is-visible");
-      ui.showToast("Düzenleme modu aktif! Kenarlardaki yeşil alanlara dokunarak yerleştirin, kırmızı alanlara dokunarak kaldırın.");
+      ui.showToast("Düzenleme modu aktif! Kenarlardaki yeşil alanlara dokunarak yerleştirin/döndürün, Kaldır aleti ile kaldırın.");
     } else {
       ui.showToast("Düzenleme modundan çıkıldı.");
     }
@@ -1206,8 +1210,12 @@ document.querySelectorAll(".buy-deco-btn").forEach(btn => {
     scene.setEditMode(true, type);
     updateDecorationsUI();
     decorationsModal.classList.remove("is-visible");
-    const names = { fence: "Ahşap Çit", lantern: "Bahçe Feneri", bench: "Ahşap Bank", well: "Taş Kuyu", flower_bed: "Çiçek Tarhı", scarecrow: "Korkuluk", stone_path: "Taş Yol" };
-    ui.showToast(`Düzenleme modu aktif: ${names[type]} yerleştirmek için yeşil alanlara dokunun.`);
+    if (type === "remove_tool") {
+      ui.showToast("Kaldırma aleti aktif: Kaldırmak istediğiniz süslemeye dokunun.");
+    } else {
+      const names = { fence: "Ahşap Çit", lantern: "Bahçe Feneri", bench: "Ahşap Bank", well: "Taş Kuyu", flower_bed: "Çiçek Tarhı", scarecrow: "Korkuluk", stone_path: "Taş Yol" };
+      ui.showToast(`Düzenleme modu aktif: ${names[type]} yerleştirmek için yeşil alanlara dokunun. Mevcut süslemeleri döndürmek için üstlerine dokunun.`);
+    }
   });
 });
 

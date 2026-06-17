@@ -280,13 +280,22 @@ export class FarmScene {
         const isOccupied = hitObj.userData.isOccupied;
         
         if (isOccupied) {
-          const success = this.farm.removeDecorationAt(col, row);
-          if (success) {
-            window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Süsleme kaldırıldı! 🗑️" } }));
-            if (window.audioSystem) window.audioSystem.playPlace();
-            this.setEditMode(true, this.selectedDecoId); // Yenile
+          if (this.selectedDecoId === "remove_tool") {
+            const success = this.farm.removeDecorationAt(col, row);
+            if (success) {
+              window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Süsleme kaldırıldı! 🗑️" } }));
+              if (window.audioSystem) window.audioSystem.playPlace();
+              this.setEditMode(true, this.selectedDecoId); // Yenile
+            }
+          } else {
+            const success = this.farm.rotateDecorationAt(col, row);
+            if (success) {
+              window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Süsleme döndürüldü! ↻" } }));
+              if (window.audioSystem) window.audioSystem.playPlace();
+              this.setEditMode(true, this.selectedDecoId); // Yenile
+            }
           }
-        } else if (this.selectedDecoId) {
+        } else if (this.selectedDecoId && this.selectedDecoId !== "remove_tool") {
           const DECORATION_COSTS = {
             fence: 50, lantern: 100, bench: 150, well: 500, flower_bed: 80, scarecrow: 200, stone_path: 30
           };
@@ -297,7 +306,7 @@ export class FarmScene {
               amount: cost,
               callback: (success) => {
                 if (success) {
-                  const placed = this.farm.addDecoration(this.selectedDecoId, col, row);
+                  const placed = this.farm.addDecoration(this.selectedDecoId, col, row, 0);
                   if (placed) {
                     window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Süsleme yerleştirildi! ✨" } }));
                     if (window.audioSystem) window.audioSystem.playPlace();
@@ -580,7 +589,11 @@ export class FarmScene {
     this.isReadOnly = true;
     this.character.group.visible = false;
     this.pet.group.visible = false;
-    this.chestSystem.group.visible = false;
+    
+    // Hide active chests
+    if (this.chestSystem && this.chestSystem.chests) {
+      this.chestSystem.chests.forEach(c => { if (c.mesh) c.mesh.visible = false; });
+    }
 
     // Düzenleme modundan çık
     this.setEditMode(false);
@@ -630,6 +643,7 @@ export class FarmScene {
 
       decosData.forEach((deco, index) => {
         const mesh = createDecorationMesh(deco.id);
+        mesh.rotation.y = deco.rotation || 0;
         const pos = this.farm.getDecorationPosition(deco.col, deco.row);
         mesh.position.copy(pos);
         mesh.userData.decorationIndex = index;
@@ -646,7 +660,11 @@ export class FarmScene {
     this.isReadOnly = false;
     this.character.group.visible = true;
     this.pet.group.visible = true;
-    this.chestSystem.group.visible = true;
+    
+    // Show active chests
+    if (this.chestSystem && this.chestSystem.chests) {
+      this.chestSystem.chests.forEach(c => { if (c.mesh) c.mesh.visible = true; });
+    }
 
     this.farm.expansionId = this.farm.loadExpansionId();
     const exp = FARM_EXPANSIONS.find(e => e.id === this.farm.expansionId) || FARM_EXPANSIONS[0];

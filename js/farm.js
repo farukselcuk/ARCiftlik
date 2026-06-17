@@ -510,13 +510,14 @@ export class Farm {
     return !isOccupied;
   }
 
-  addDecoration(decoId, col, row) {
+  addDecoration(decoId, col, row, rotation = 0) {
     if (!this.canPlaceDecoration(col, row)) return false;
 
-    const deco = { id: decoId, col, row };
+    const deco = { id: decoId, col, row, rotation };
     this.decorations.push(deco);
     
     const mesh = createDecorationMesh(decoId);
+    mesh.rotation.y = rotation;
     const pos = this.getDecorationPosition(col, row);
     mesh.position.copy(pos);
     mesh.userData.decorationIndex = this.decorations.length - 1;
@@ -524,6 +525,23 @@ export class Farm {
     this.group.add(mesh);
     this.decorationMeshes.push(mesh);
     
+    this.saveDecorations();
+    return true;
+  }
+
+  rotateDecorationAt(col, row) {
+    const idx = this.decorations.findIndex(d => d.col === col && d.row === row);
+    if (idx === -1) return false;
+
+    const deco = this.decorations[idx];
+    deco.rotation = ((deco.rotation || 0) + Math.PI / 2) % (Math.PI * 2);
+
+    // Find mesh and update rotation
+    const mesh = this.decorationMeshes.find(m => m.userData.decorationIndex === idx);
+    if (mesh) {
+      mesh.rotation.y = deco.rotation;
+    }
+
     this.saveDecorations();
     return true;
   }
@@ -563,6 +581,7 @@ export class Farm {
 
     data.forEach((deco, index) => {
       const mesh = createDecorationMesh(deco.id);
+      mesh.rotation.y = deco.rotation || 0;
       const pos = this.getDecorationPosition(deco.col, deco.row);
       mesh.position.copy(pos);
       mesh.userData.decorationIndex = index;
