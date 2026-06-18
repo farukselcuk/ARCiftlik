@@ -2975,7 +2975,7 @@ window.updateCarpenterUI = function() {
   // Render queue
   queueListEl.innerHTML = "";
   if (carpenterQueue.length === 0) {
-    queueListEl.innerHTML = \`<p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; margin-top: 20px;">Kuyruk boş.</p>\`;
+    queueListEl.innerHTML = `<p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; margin-top: 20px;">Kuyruk boş.</p>`;
   } else {
     carpenterQueue.forEach(qItem => {
       const recipe = CARPENTER_RECIPES[qItem.recipeId];
@@ -2997,18 +2997,18 @@ window.updateCarpenterUI = function() {
       qEl.style.padding = "10px";
       
       if (qItem.isReady) {
-        qEl.innerHTML = \`
+        qEl.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
             <span style="font-weight: bold; color: #2ecc71; font-size: 13px;">🎉 ${recipe.name} Hazır!</span>
           </div>
           <button class="primary-button collect-btn" type="button" style="margin: 0; background: #2ecc71; color: #000; padding: 4px 8px; font-size: 12px;">Topla</button>
-        \`;
+        `;
         qEl.querySelector(".collect-btn").addEventListener("click", (e) => {
           e.stopPropagation();
           collectFurniture(qItem.id);
         });
       } else {
-        qEl.innerHTML = \`
+        qEl.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
             <span style="font-weight: bold; font-size: 12px;">🛠️ ${recipe.name}</span>
             <span style="font-size: 11px; color: var(--accent);">${remainingSec}s</span>
@@ -3016,7 +3016,7 @@ window.updateCarpenterUI = function() {
           <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;">
             <div style="width: ${progress * 100}%; height: 100%; background: var(--accent); transition: width 0.5s;"></div>
           </div>
-        \`;
+        `;
       }
       
       queueListEl.appendChild(qEl);
