@@ -41,8 +41,7 @@
             <div class="env-widget season-widget" id="season-widget" title="Mevsim Bilgisi">
               <span class="env-widget-icon" id="season-icon">🌸</span>
               <div class="env-widget-info">
-                <span class="env-widget-label" id="season-name">İlkbahar</span>
-                <span class="env-widget-sub" id="season-month">Haziran</span>
+                <span class="env-widget-label" id="season-name" style="font-size: 14px;">İlkbahar</span>
               </div>
             </div>
             <div class="env-widget time-widget" id="time-widget" title="Saat">
@@ -67,7 +66,6 @@
           <button id="open-warehouse" class="icon-button" type="button" aria-label="Open warehouse" title="Depo">📦</button>
           <button id="open-decorations" class="icon-button" type="button" aria-label="Open decorations" title="Süslemeler">🧱</button>
           <button id="open-social" class="icon-button" type="button" aria-label="Open social" title="Sosyal">👥</button>
-          <button id="open-carpenter-btn" class="icon-button" type="button" aria-label="Open carpenter" title="Marangoz Atölyesi">🛠️</button>
           <button id="open-settings-btn" class="icon-button" type="button" aria-label="Settings" title="Ayarlar">⚙️</button>
           <button id="open-patch-notes" class="icon-button" type="button" aria-label="Patch Notes" title="Güncellemeler">📢</button>
           <button id="open-merchant-btn" class="icon-button" type="button" aria-label="Wandering Merchant" title="Seyyar Satıcı" style="display: none; background: #8b5a2b;">🎒</button>
@@ -96,14 +94,17 @@
 
       <!-- Seyyar Satıcı Modalı -->
       <div id="merchant-modal" class="market-modal">
-        <div class="market-content" style="max-width: 500px;">
+        <div class="market-content" style="max-width: 500px; background: linear-gradient(180deg, #3d2c1d 0%, #1a1005 100%); border: 3px solid #8b5a2b; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.8), inset 0 0 20px rgba(255,200,0,0.1);">
           <button id="close-merchant" class="close-button" type="button">✕</button>
-          <h2>🎒 Seyyar Satıcı</h2>
-          <p style="margin-bottom: 15px; color: var(--text-muted);">Sınırlı süreli teklifler! Gitmeden önce fırsatları kaçırma.</p>
-          <div id="merchant-items-container" class="market-items">
+          <h2 style="color: #ffd700; text-shadow: 0 2px 4px rgba(0,0,0,0.8); margin-bottom: 5px;">🎒 Seyyar Satıcı</h2>
+          <p style="margin-bottom: 15px; color: #d2b48c; font-size: 13px;">Uzak diyarlardan gelen bu satıcı sınırlı süreli özel fırsatlar sunuyor!</p>
+          <div id="merchant-items-container" class="market-items" style="display: flex; flex-direction: column; gap: 10px;">
             <!-- JS tarafından doldurulacak -->
           </div>
-          <p id="merchant-timer" style="margin-top: 15px; font-weight: bold; color: var(--danger);"></p>
+          <div style="background: rgba(0,0,0,0.4); border-radius: 8px; padding: 10px; margin-top: 15px; border: 1px solid #5c3a21; text-align: center;">
+            <p style="margin: 0; font-size: 12px; color: #aaa;">Satıcının Ayrılmasına Kalan Süre</p>
+            <p id="merchant-timer" style="margin: 5px 0 0 0; font-weight: bold; color: #ff6b6b; font-size: 16px;">--:--</p>
+          </div>
         </div>
       </div>
 
@@ -879,8 +880,12 @@
           <span class="tab-label">Çiftlik</span>
         </button>
         <button class="tab-button" data-scene="bakery" type="button" id="tab-bakery" style="opacity: 0.5;">
-          <span class="tab-icon">🍞🔒</span>
+          <span class="tab-icon">🍞</span>
           <span class="tab-label">Fırın</span>
+        </button>
+        <button class="tab-button" data-scene="carpenter" type="button" id="tab-carpenter">
+          <span class="tab-icon">🪚</span>
+          <span class="tab-label">Marangoz</span>
         </button>
         <button class="tab-button" data-scene="market" type="button">
           <span class="tab-icon">🛒</span>

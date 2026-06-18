@@ -123,6 +123,20 @@ async function initGame(user, nickname) {
   socialSystem = new SocialSystem(globalStorage, inventory);
   window.socialSystem = socialSystem;
 
+  merchantSystem = new MerchantSystem(globalStorage, inventory);
+  window.merchantSystem = merchantSystem;
+  
+  window.addEventListener("merchant-arrived", () => {
+    document.querySelector("#open-merchant-btn").style.display = "inline-flex";
+    if (ui) ui.showToast("🎒 Seyyar Satıcı çiftliğe geldi!");
+    if (audioSystem) audioSystem.playPlace();
+  });
+  window.addEventListener("merchant-left", () => {
+    document.querySelector("#open-merchant-btn").style.display = "none";
+    document.querySelector("#merchant-modal").classList.remove("is-visible");
+    if (ui) ui.showToast("🎒 Seyyar Satıcı ayrıldı.");
+  });
+
   window.seasonSystem = seasonSystem;
   window.weatherSystem = weatherSystem;
 
@@ -231,6 +245,10 @@ async function initGame(user, nickname) {
   updateWeatherUI();
   updateSeasonUI();
   updateTimeUI();
+  
+  if (merchantSystem && merchantSystem.state.active) {
+    document.querySelector("#open-merchant-btn").style.display = "inline-flex";
+  }
   
   // Periyodik UI güncellemeleri (saat ve sıcaklık - dakikada bir senkron)
   const msUntilNextMinute = 60000 - (Date.now() % 60000);
@@ -879,15 +897,13 @@ function updateSeasonUI() {
   
   const iconEl = document.querySelector("#season-icon");
   const nameEl = document.querySelector("#season-name");
-  const monthEl = document.querySelector("#season-month");
   
   if (iconEl) iconEl.textContent = info.season.icon;
   if (nameEl) nameEl.textContent = info.season.name;
-  if (monthEl) monthEl.textContent = `${info.day} ${info.monthName}`;
   
   // Widget'e title tooltip
   const widget = document.querySelector("#season-widget");
-  if (widget) widget.title = `${info.season.icon} ${info.season.name} — ${info.day} ${info.monthName}`;
+  if (widget) widget.title = `${info.season.icon} ${info.season.name}`;
 }
 
 function updateTimeUI() {
@@ -3029,5 +3045,80 @@ setInterval(() => {
   const modal = document.querySelector("#carpenter-modal");
   if (modal && modal.classList.contains("is-visible")) {
     updateCarpenterUI();
+  }
+}, 1000);
+
+// --- SEYYAR SATICI (MERCHANT) ---
+const merchantBtn = document.querySelector("#open-merchant-btn");
+const merchantModal = document.querySelector("#merchant-modal");
+const closeMerchantBtn = document.querySelector("#close-merchant");
+const merchantItemsContainer = document.querySelector("#merchant-items-container");
+const merchantTimerEl = document.querySelector("#merchant-timer");
+
+if (merchantBtn) {
+  merchantBtn.addEventListener("click", () => {
+    merchantModal.classList.add("is-visible");
+    updateMerchantUI();
+  });
+}
+if (closeMerchantBtn) {
+  closeMerchantBtn.addEventListener("click", () => {
+    merchantModal.classList.remove("is-visible");
+  });
+}
+
+function updateMerchantUI() {
+  if (!merchantSystem || !merchantSystem.state.active) {
+    merchantModal.classList.remove("is-visible");
+    return;
+  }
+  
+  merchantItemsContainer.innerHTML = "";
+  merchantSystem.state.items.forEach((item, index) => {
+    const el = document.createElement("div");
+    el.className = "market-item";
+    el.style.opacity = item.sold ? "0.5" : "1";
+    el.innerHTML = `
+      <div class="item-info">
+        <h3 style="margin:0 0 5px 0;">${item.icon} ${item.name}</h3>
+        <p style="font-size: 11px; margin: 0; color: #bbb;">${item.desc}</p>
+      </div>
+      <button class="primary-button buy-merchant-btn" data-index="${index}" ${item.sold ? "disabled" : ""} style="background: #e67e22; border-color: #d35400; font-size: 12px; margin: 0;">
+        ${item.sold ? "Tükendi" : `Satın Al (${item.price} 🪙)`}
+      </button>
+    `;
+    merchantItemsContainer.appendChild(el);
+  });
+  
+  document.querySelectorAll(".buy-merchant-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const index = parseInt(e.target.dataset.index);
+      const itemPrice = merchantSystem.state.items[index].price;
+      
+      if (ui.getCoins() >= itemPrice) {
+        const result = merchantSystem.buyItem(index, ui.getCoins());
+        if (result.success) {
+          ui.updateCoins(-itemPrice);
+          inventory.add(result.item.id, result.item.type === "bundle" ? 3 : 1);
+          ui.showToast(`Başarıyla satın alındı: ${result.item.name}`);
+          if (audioSystem) audioSystem.playCoin();
+          updateMerchantUI();
+          updateWarehouseUI();
+        } else {
+          ui.showToast(result.reason);
+        }
+      } else {
+        ui.showToast("Yeterli altının yok!");
+      }
+    });
+  });
+}
+
+setInterval(() => {
+  if (merchantSystem && merchantSystem.state.active && merchantModal.classList.contains("is-visible")) {
+    const remaining = Math.max(0, merchantSystem.state.expiresAt - Date.now());
+    const m = Math.floor(remaining / 60000);
+    const s = Math.floor((remaining % 60000) / 1000);
+    if (merchantTimerEl) merchantTimerEl.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
 }, 1000);

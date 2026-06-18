@@ -212,40 +212,13 @@ export class SeasonSystem {
   }
 
   /**
-   * Türkçe ay isimleri.
-   */
-  static get MONTH_NAMES() {
-    return [
-      "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-      "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
-    ];
-  }
-
-  /**
-   * Gerçek takvim ayını döndürür.
-   * @returns {{ monthIndex: number, monthName: string, day: number }}
-   */
-  getCurrentMonth() {
-    const now = new Date();
-    const monthIndex = now.getMonth();
-    return {
-      monthIndex,
-      monthName: SeasonSystem.MONTH_NAMES[monthIndex],
-      day: now.getDate()
-    };
-  }
-
-  /**
-   * Mevsim + ay bilgilerini birlikte döndürür.
-   * @returns {{ season: object, monthName: string, day: number }}
+   * Sadece mevsim bilgisini döndürür (Geriye dönük uyumluluk için ismi aynı bırakıldı)
+   * @returns {{ season: object }}
    */
   getSeasonWithMonth() {
     const season = this.getCurrentSeason();
-    const month = this.getCurrentMonth();
     return {
-      season,
-      monthName: month.monthName,
-      day: month.day
+      season
     };
   }
 }
