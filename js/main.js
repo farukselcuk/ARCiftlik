@@ -678,7 +678,7 @@ function checkDailyLogin() {
         
         character.addXP(10, "daily");
         modal.classList.remove("is-visible");
-        updateMarketSellList();
+        updateWarehouseUI();
         updateOrdersUI();
       }
     };
