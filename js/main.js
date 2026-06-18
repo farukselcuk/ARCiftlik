@@ -1485,14 +1485,7 @@ function updateWarehouseUI() {
     });
   });
 
-  // Fırın Ürünleri Satışları
-  const BAKERY_SELL_ITEMS = {
-    flour: { name: "📦 Paketli Un", price: 15 },
-    bread: { name: "🍞 Taze Ekmek", price: 35 },
-    strawberry_cake: { name: "🍰 Çilekli Kek", price: 80 },
-    blueberry_pie: { name: "🥧 Mavi Yemiş Turtası", price: 120 },
-    carrot_cake: { name: "🧁 Havuçlu Kek", price: 55 }
-  };
+  // Fırın Ürünleri Satışları (using global BAKERY_SELL_ITEMS)
 
   Object.keys(BAKERY_SELL_ITEMS).forEach((itemId) => {
     const count = inventory.getCount(itemId);
@@ -2799,6 +2792,14 @@ if (claimGoldBtn) {
 }
 
 // ── FIRIN ATÖLYESİ VE ÜRETİM LİMİTLERİ ──────────────────────────
+const BAKERY_SELL_ITEMS = {
+  flour: { name: "📦 Paketli Un", price: 15 },
+  bread: { name: "🍞 Taze Ekmek", price: 35 },
+  strawberry_cake: { name: "🍰 Çilekli Kek", price: 80 },
+  blueberry_pie: { name: "🥧 Mavi Yemiş Turtası", price: 120 },
+  carrot_cake: { name: "🧁 Havuçlu Kek", price: 55 }
+};
+
 const BAKERY_RECIPES = {
   flour: {
     id: "flour",
