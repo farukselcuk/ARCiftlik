@@ -71,11 +71,67 @@
           <button id="open-social" class="icon-button" type="button" aria-label="Open social" title="Sosyal">👥</button>
           <button id="open-carpenter-btn" class="icon-button" type="button" aria-label="Open carpenter" title="Marangoz Atölyesi">🛠️</button>
           <button id="open-settings-btn" class="icon-button" type="button" aria-label="Settings" title="Ayarlar">⚙️</button>
+          <button id="open-patch-notes" class="icon-button" type="button" aria-label="Patch Notes" title="Güncellemeler">📢</button>
+          <button id="open-merchant-btn" class="icon-button" type="button" aria-label="Wandering Merchant" title="Seyyar Satıcı" style="display: none; background: #8b5a2b;">🎒</button>
         </div>
       </div>
 
       <div class="aim-dot" aria-hidden="true"></div>
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+      <!-- Güncelleme Notları Modalı -->
+      <div id="patch-notes-modal" class="modal">
+        <div class="modal-content" style="max-width: 450px; text-align: left;">
+          <button id="close-patch-notes" class="close-button" type="button">✕</button>
+          <h2>🌟 Yenilikler (v1.1)</h2>
+          <div style="margin: 15px 0; line-height: 1.6;">
+            <ul style="padding-left: 20px;">
+              <li><strong>🍂 Çürüme Sistemi:</strong> Ürünler olgunlaştıktan sonra hasat edilmezse çürüyebilir!</li>
+              <li><strong>🎒 Seyyar Satıcı:</strong> Çiftliğe hafta sonları gizemli bir satıcı uğramaya başladı.</li>
+              <li><strong>✨ Görsel Efektler:</strong> Kazançlar artık 3D olarak havada uçuşuyor!</li>
+              <li><strong>📜 Çevrimdışı Rapor:</strong> Oyuna döndüğünde sen yokken olanları gösteren bir ekran eklendi.</li>
+            </ul>
+          </div>
+          <button id="btn-patch-ok" class="primary-button" style="width: 100%;">Harika!</button>
+        </div>
+      </div>
+
+      <!-- Seyyar Satıcı Modalı -->
+      <div id="merchant-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+          <button id="close-merchant" class="close-button" type="button">✕</button>
+          <h2>🎒 Seyyar Satıcı</h2>
+          <p style="margin-bottom: 15px; color: var(--text-muted);">Sınırlı süreli teklifler! Gitmeden önce fırsatları kaçırma.</p>
+          <div id="merchant-items-container" class="market-items">
+            <!-- JS tarafından doldurulacak -->
+          </div>
+          <p id="merchant-timer" style="margin-top: 15px; font-weight: bold; color: var(--danger);"></p>
+        </div>
+      </div>
+
+      <!-- Çevrimdışı Rapor Modalı -->
+      <div id="offline-report-modal" class="modal">
+        <div class="modal-content" style="max-width: 450px; text-align: left;">
+          <button id="close-offline-report" class="close-button" type="button">✕</button>
+          <h2>📜 Çiftliğe Hoş Geldin!</h2>
+          <p style="margin-bottom: 15px; color: var(--text-muted);">Sen yokken çiftlikte olanlar:</p>
+          <div style="background: var(--bg-card); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <div id="offline-report-gold" style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 1.1em;">
+              <span>Pazar Kazancı:</span>
+              <strong style="color: #ffd700;">+0 🪙</strong>
+            </div>
+            <div id="offline-report-ready" style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 1.1em;">
+              <span>Hasada Hazır Ekin:</span>
+              <strong style="color: #4CAF50;">0 🌾</strong>
+            </div>
+            <div id="offline-report-withered" style="display: flex; justify-content: space-between; font-size: 1.1em;">
+              <span>Çürümüş Ekin:</span>
+              <strong style="color: #f44336;">0 🥀</strong>
+            </div>
+          </div>
+          <button id="btn-offline-ok" class="primary-button" style="width: 100%;">Teşekkürler!</button>
+        </div>
+      </div>
 
       <section id="start-panel" class="start-panel">
         <div class="start-content">

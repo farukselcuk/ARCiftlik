@@ -15,6 +15,7 @@ import { Performance } from "./performance.js";
 import * as firebaseService from "./firebase-service.js";
 import { AudioSystem } from "./audio.js";
 import { SocialSystem, generateFriendCode } from "./social.js";
+import { MerchantSystem } from "./merchant.js";
 
 // Viewport düzeltmesi (Android klavye sorunu)
 setupViewportFix();
@@ -49,6 +50,7 @@ let character = null;
 let audioSystem = null;
 let socialSystem = null;
 let dayNightCycle = null;
+let merchantSystem = null;
 
 // Göç / Bildirim kontrolü
 let _migrationNotice = null;
@@ -95,12 +97,24 @@ async function initGame(user, nickname) {
   marketStorage.checkVersion();
   bakeryStorage.checkVersion();
   
+  document.getElementById("open-patch-notes").addEventListener("click", () => {
+    document.getElementById("patch-notes-modal").classList.add("is-visible");
+  });
+  document.getElementById("close-patch-notes").addEventListener("click", () => {
+    document.getElementById("patch-notes-modal").classList.remove("is-visible");
+  });
+  document.getElementById("btn-patch-ok").addEventListener("click", () => {
+    document.getElementById("patch-notes-modal").classList.remove("is-visible");
+  });
+
+
   // Modülleri instantiate et
   inventory = new Inventory(globalStorage);
   orders = new Orders(globalStorage);
   dailyLogin = new DailyLogin(globalStorage);
   weatherSystem = new WeatherSystem(globalStorage);
   seasonSystem = new SeasonSystem(globalStorage);
+  merchantSystem = new MerchantSystem(globalStorage, inventory);
   
   audioSystem = new AudioSystem();
   audioSystem.init();
@@ -226,8 +240,17 @@ async function initGame(user, nickname) {
     setInterval(() => {
       updateTimeUI();
       updateWeatherUI();
+      if (merchantSystem) merchantSystem.checkSpawn();
     }, 60000);
   }, msUntilNextMinute);
+  
+  // Patch Notes Kontrolü (v1.1)
+  if (!localStorage.getItem("patchSeen_v1_1")) {
+    setTimeout(() => {
+      document.getElementById("patch-notes-modal").classList.add("is-visible");
+      localStorage.setItem("patchSeen_v1_1", "true");
+    }, 1500); // Oyuna girdikten 1.5 sn sonra açılmasını sağla
+  }
   
   // Giriş ekranı verilerini güncelle
   document.querySelector("#user-display-name").textContent = nickname;
@@ -286,16 +309,13 @@ async function initGame(user, nickname) {
     }
   });
   
-  // Satışlardan gelen ve toplanmayı bekleyen altınları kontrol et
-  const pending = globalStorage.loadField("pendingGold") || 0;
-  if (pending > 0) {
-    const coins = globalStorage.loadField("coins") || 0;
-    globalStorage.saveField("coins", coins + pending);
-    globalStorage.saveField("pendingGold", 0);
-    setTimeout(() => {
-      ui.showToast(`🎉 Çevrimdışı satışlardan ${pending} Altın toplandı! 💰`);
-      if (audioSystem) audioSystem.playCoin();
-    }, 2500);
+  // Çevrimdışı Rapor / Satışları Kontrol Et
+  checkOfflineReport();
+
+  // Seyyar Satıcı Kontrolleri
+  merchantSystem.checkSpawn();
+  if (merchantSystem.state.active) {
+    document.getElementById("open-merchant-btn").style.display = "inline-flex";
   }
 
   // Yükleme bitti, karşılama ekranını göster
@@ -448,6 +468,85 @@ window.addEventListener("toast", (e) => {
 window.addEventListener("open-market-panel", () => {
   updateMarketUI();
   document.querySelector("#market-panel").classList.add("is-visible");
+});
+
+window.addEventListener("merchant-arrived", () => {
+  ui.showToast("🎒 Seyyar Satıcı çiftliğe uğradı! Fırsatları kaçırma.");
+  document.getElementById("open-merchant-btn").style.display = "inline-flex";
+});
+
+window.addEventListener("merchant-left", () => {
+  ui.showToast("🎒 Seyyar Satıcı çiftlikten ayrıldı.");
+  document.getElementById("open-merchant-btn").style.display = "none";
+  document.getElementById("merchant-modal").classList.remove("is-visible");
+});
+
+document.getElementById("open-merchant-btn").addEventListener("click", () => {
+  updateMerchantUI();
+  document.getElementById("merchant-modal").classList.add("is-visible");
+});
+
+document.getElementById("close-merchant").addEventListener("click", () => {
+  document.getElementById("merchant-modal").classList.remove("is-visible");
+});
+
+function updateMerchantUI() {
+  const container = document.getElementById("merchant-items-container");
+  container.innerHTML = "";
+
+  if (!merchantSystem || !merchantSystem.state.active) {
+    container.innerHTML = "<p>Satıcı şu an burada değil.</p>";
+    return;
+  }
+
+  const items = merchantSystem.state.items;
+  items.forEach((item, index) => {
+    const div = document.createElement("div");
+    div.className = "market-item";
+    div.innerHTML = `
+      <div class="item-info">
+        <h3>${item.name} ${item.icon}</h3>
+        <p>${item.desc}</p>
+        <div class="item-stats">${item.sold ? "Tükendi" : "Stok: 1"}</div>
+      </div>
+      <button class="primary-button" ${item.sold ? "disabled" : ""} onclick="buyMerchantItem(${index})">
+        ${item.sold ? "Satıldı" : item.price + " 🪙"}
+      </button>
+    `;
+    container.appendChild(div);
+  });
+
+  const timerEl = document.getElementById("merchant-timer");
+  const updateTimer = () => {
+    if (!merchantSystem.state.active) return;
+    const left = Math.max(0, Math.floor((merchantSystem.state.expiresAt - Date.now()) / 1000));
+    const mins = Math.floor(left / 60);
+    const secs = left % 60;
+    timerEl.textContent = `Ayrılmasına: ${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  updateTimer();
+  // We can just rely on the user reopening it or checking again, to not spam setIntervals.
+}
+
+window.buyMerchantItem = function(index) {
+  const coins = parseInt(globalStorage.loadField("coins")) || 0;
+  const result = merchantSystem.buyItem(index, coins);
+  
+  if (result.success) {
+    globalStorage.saveField("coins", coins - result.item.price);
+    ui.updateCoinsDisplay(coins - result.item.price);
+    ui.showToast(`🎒 ${result.item.name} satın alındı!`);
+    if (audioSystem) audioSystem.playCoin();
+    updateMerchantUI();
+    updateWarehouseUI();
+  } else {
+    ui.showToast(`❌ ${result.reason}`);
+  }
+};
+
+window.addEventListener("crop-withered", (e) => {
+  ui.showToast(`🥀 Çürümüş ${e.detail.name} temizlendi. (Getiri: 0)`);
+  if (audioSystem) audioSystem.playChop(); // Temizleme sesi
 });
 
 window.addEventListener("crop-harvested", (e) => {
@@ -637,6 +736,74 @@ document.querySelector(".seed-picker-backdrop").addEventListener("click", () => 
 });
 
 populateSeedPicker();
+
+// ==========================================
+// ÇEVRİMDIŞI RAPOR ENTEGRASYONU
+// ==========================================
+function checkOfflineReport() {
+  const pending = globalStorage.loadField("pendingGold") || 0;
+  const plotsData = farmStorage.loadField("plots") || [];
+  
+  let readyCrops = 0;
+  let witheredCrops = 0;
+  const now = Date.now();
+
+  plotsData.forEach(p => {
+    if (p && p.cropId) {
+      const crop = CROP_TYPES[p.cropId];
+      if (crop) {
+        let fertMult = 1.0;
+        if (p.fertilizer === "fertilizer_basic") fertMult = 2.0;
+        else if (p.fertilizer === "fertilizer_super") fertMult = 3.0;
+        else if (p.fertilizer === "fertilizer_golden") fertMult = 4.0;
+        
+        const actualGrowTime = crop.growTime / fertMult;
+        const elapsed = now - p.plantedAt + (p.boostMs || 0);
+        
+        if (elapsed > actualGrowTime + 3600000) {
+          witheredCrops++;
+        } else if (elapsed >= actualGrowTime) {
+          readyCrops++;
+        }
+      }
+    }
+  });
+
+  const lastLogin = globalStorage.loadField("last_login_time") || now;
+  const timeAway = now - lastLogin;
+
+  // Parayı hesaba kat
+  if (pending > 0) {
+    const coins = globalStorage.loadField("coins") || 0;
+    globalStorage.saveField("coins", coins + pending);
+    globalStorage.saveField("pendingGold", 0);
+  }
+
+  // Sadece en az 5 dakika uzak kalmışsa VEYA satış/çürüme varsa Raporu göster
+  if (timeAway > 5 * 60 * 1000 && (pending > 0 || readyCrops > 0 || witheredCrops > 0)) {
+    document.getElementById("offline-report-gold").querySelector("strong").textContent = `+${pending} 🪙`;
+    document.getElementById("offline-report-ready").querySelector("strong").textContent = `${readyCrops} 🌾`;
+    document.getElementById("offline-report-withered").querySelector("strong").textContent = `${witheredCrops} 🥀`;
+    
+    // Welcome Panel'den sonra açılması için geciktir
+    setTimeout(() => {
+      document.getElementById("offline-report-modal").classList.add("is-visible");
+      if (pending > 0 && audioSystem) audioSystem.playCoin();
+    }, 1500);
+  } else if (pending > 0) {
+    // Sadece para geldiyse ve offline süresi kısaysa eski tost mesajını göster
+    setTimeout(() => {
+      ui.showToast(`🎉 Çevrimdışı satışlardan ${pending} Altın toplandı! 💰`);
+      if (audioSystem) audioSystem.playCoin();
+    }, 2500);
+  }
+
+  // Button close event
+  const btnClose = document.getElementById("close-offline-report");
+  const btnOk = document.getElementById("btn-offline-ok");
+  if (btnClose) btnClose.onclick = () => document.getElementById("offline-report-modal").classList.remove("is-visible");
+  if (btnOk) btnOk.onclick = () => document.getElementById("offline-report-modal").classList.remove("is-visible");
+}
 
 // Günlük Giriş Entegrasyonu
 function checkDailyLogin() {

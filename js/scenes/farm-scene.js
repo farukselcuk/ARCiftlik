@@ -11,6 +11,7 @@ import { Input } from "../input.js";
 import { CROP_TYPES, getStage, GOLDEN_CHANCE } from "../crops.js";
 import { RainSystem, SnowSystem, LeafSystem } from "../particles.js";
 import { createDecorationMesh, DECORATION_ZONES } from "../decorations.js";
+import { FloatingTextManager } from "../floating-text.js";
 
 export class FarmScene {
   /**
@@ -33,6 +34,7 @@ export class FarmScene {
     this.character = new Character(globalStorage);
     this.pet = new Pet(globalStorage); // Pet satın alım bilgisi globalde
     this.chestSystem = new ChestSystem(globalStorage);
+    this.floatingTextManager = new FloatingTextManager(this.camera);
 
     this.raycaster = new THREE.Raycaster();
     this.ambientLight = null;
@@ -619,13 +621,23 @@ export class FarmScene {
 
       const result = this.farm.harvest(plotIndex);
       if (result) {
-        const { crop, fertilizer } = result;
-        // Altın ürün şansı GOLDEN_CHANCE, Altın Gübre varsa %100!
-        const isGolden = (fertilizer === "fertilizer_golden") || (Math.random() < GOLDEN_CHANCE);
+        const { crop, fertilizer, isWithered } = result;
         
-        window.dispatchEvent(new CustomEvent("crop-harvested", {
-          detail: { cropId: crop.id, name: crop.name, isGolden }
-        }));
+        if (isWithered) {
+          window.dispatchEvent(new CustomEvent("crop-withered", {
+            detail: { cropId: crop.id, name: crop.name }
+          }));
+        } else {
+          // Altın ürün şansı GOLDEN_CHANCE, Altın Gübre varsa %100!
+          const isGolden = (fertilizer === "fertilizer_golden") || (Math.random() < GOLDEN_CHANCE);
+          
+          const plotPos = this.farm.plots[plotIndex].group.position.clone();
+          this.floatingTextManager.show(`+${crop.reward}`, plotPos, isGolden ? "#ffd700" : "#4CAF50");
+
+          window.dispatchEvent(new CustomEvent("crop-harvested", {
+            detail: { cropId: crop.id, name: crop.name, isGolden, plotPos }
+          }));
+        }
       }
     } catch (err) {
       console.error("Harvesting failed:", err);
@@ -683,6 +695,7 @@ export class FarmScene {
       this.character.update(dt);
       this.pet.update(dt);
       this.chestSystem.update(realNow);
+      if (this.floatingTextManager) this.floatingTextManager.update();
     }
 
     // DayNightCycle güncelle (gerçek saat bazlı)

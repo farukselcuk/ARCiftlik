@@ -265,14 +265,17 @@ export class Farm {
   harvest(index) {
     if (this.isLocked(index)) return null;
     const plot = this.plots[index];
-    if (!plot || !plot.cropId || this.getProgress(plot, Date.now()) < 1) return null;
+    const progress = this.getProgress(plot, Date.now());
+    if (!plot || !plot.cropId || progress < 1) return null;
 
     const crop = CROP_TYPES[plot.cropId];
     const fertilizer = plot.fertilizer;
+    const isWithered = (progress === 2);
+
     this.createHarvestParticles(plot.group.position);
     this.clearPlot(plot);
     this.save();
-    return { crop, fertilizer };
+    return { crop, fertilizer, isWithered };
   }
 
   isReadyToHarvest(index) {
@@ -378,8 +381,16 @@ export class Farm {
     }
 
     const growMultiplier = this.weatherGrowMultiplier * this.seasonGrowMultiplier * fertMultiplier;
-    const effectiveElapsed = (now - plot.plantedAt + plot.boostMs) * growMultiplier;
-    return Math.min(1, effectiveElapsed / crop.growTime);
+    const actualGrowTime = crop.growTime / growMultiplier;
+    const realElapsed = now - plot.plantedAt + plot.boostMs;
+    const progress = realElapsed / actualGrowTime;
+
+    // Hasat edildikten sonra 1 saat (3600000 ms) daha toplanmazsa çürür (Withered)
+    if (realElapsed > actualGrowTime + 3600000) {
+      return 2; 
+    }
+
+    return Math.min(1, progress);
   }
 
   refreshCropMesh(plot, stage) {

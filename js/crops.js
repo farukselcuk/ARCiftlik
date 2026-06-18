@@ -136,6 +136,7 @@ const materials = {
   sunflowerStem: new THREE.MeshStandardMaterial({ color: 0x2f8f51, roughness: 0.78 }),
   sunflowerPetal: new THREE.MeshStandardMaterial({ color: CROP_TYPES.sunflower.readyColor, roughness: 0.66 }),
   sunflowerCenter: new THREE.MeshStandardMaterial({ color: 0x6b4220, roughness: 0.9 }),
+  withered: new THREE.MeshStandardMaterial({ color: 0x3d2817, roughness: 0.95 }),
   
   // Yeni ürün materyalleri
   carrot: new THREE.MeshStandardMaterial({ color: CROP_TYPES.carrot.readyColor, roughness: 0.7 }),
@@ -161,6 +162,7 @@ function getSegments(type) {
 }
 
 export function getStage(progress) {
+  if (progress === 2) return 4;
   if (progress >= 1) return 3;
   if (progress >= 0.5) return 2;
   return 1;
@@ -169,6 +171,7 @@ export function getStage(progress) {
 export function createCropMesh(cropId, stage) {
   if (stage === 1) return createSeed();
   if (stage === 2) return createSprout();
+  if (stage === 4) return createWithered();
 
   if (cropId === "corn") return createCorn();
   if (cropId === "strawberry") return createStrawberry();
@@ -191,6 +194,13 @@ export function createGoldenCropMesh(cropId) {
       child.material = goldenMaterial;
     }
   });
+  return mesh;
+}
+
+function createWithered() {
+  const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.1, getSegments("cone")), materials.withered);
+  mesh.position.y = 0.05;
+  mesh.rotation.x = Math.PI / 8; // Hafif eğik durur
   return mesh;
 }
 
