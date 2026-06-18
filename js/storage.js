@@ -11,6 +11,7 @@ const GAME_VERSION = "1.0.0";
 const DEFAULTS_BY_NAMESPACE = {
   global: {
     coins: 100,
+    gems: 10,
     level: 1,
     xp: 0,
     inventory: {

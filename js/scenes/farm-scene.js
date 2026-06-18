@@ -748,6 +748,7 @@ export class FarmScene {
 
   loadFriendData(friendSaveData) {
     this.isReadOnly = true;
+    this.farm.friendSaveData = friendSaveData;
     this.character.group.visible = false;
     this.pet.group.visible = false;
     
@@ -760,82 +761,10 @@ export class FarmScene {
     this.setEditMode(false);
 
     try {
-      let expId = 1;
-      let unlockedPlots = 4;
-      let plotsData = [];
-      let decosData = [];
-
-      // saves/{uid} altındaki custom namespace'lerden veriyi al
-      if (friendSaveData["arciftlik:farm:state"]) {
-        const farmState = JSON.parse(friendSaveData["arciftlik:farm:state"]);
-        expId = farmState.expansionId || 1;
-        unlockedPlots = farmState.unlockedPlots || 4;
-        plotsData = farmState.plots || [];
-        decosData = farmState.decorations || [];
-      }
-
-      this.farm.expansionId = expId;
-      const exp = FARM_EXPANSIONS.find(e => e.id === expId) || FARM_EXPANSIONS[0];
-      this.farm.gridRows = exp.gridRows;
-      this.farm.gridCols = exp.gridCols;
-      this.farm.unlockedPlotsCount = unlockedPlots;
-
       // Çiftlik gridini arkadaşa göre inşa et
-      this.farm.rebuildGrid();
+      this.farm.rebuildGrid('friend');
       this.updateStaticMeshesPositions();
       if (this.mailboxGroup) this.mailboxGroup.visible = false;
-
-      // Önce tüm tarlaları temizle (kendi tarlamızdan kalan bitkileri sil)
-      this.farm.plots.forEach(plot => this.farm.clearPlot(plot));
-
-      // Arkadaşın bitkilerini yerleştir
-      plotsData.forEach((saved, index) => {
-        if (!saved || !this.farm.plots[index]) return;
-        const plot = this.farm.plots[index];
-        plot.cropId = saved.cropId;
-        plot.plantedAt = Number(saved.plantedAt) || Date.now();
-        plot.boostMs = Number(saved.boostMs) || 0;
-        plot.fertilizer = saved.fertilizer || null;
-        if (plot.cropId && CROP_TYPES[plot.cropId]) {
-          this.farm.refreshCropMesh(plot, getStage(this.farm.getProgress(plot, Date.now())));
-          this.farm.updateFertilizerVisual(plot);
-        }
-      });
-
-      // Arkadaşın süslemelerini yerleştir
-      this.farm.decorationMeshes.forEach(mesh => this.farm.group.remove(mesh));
-      this.farm.decorationMeshes = [];
-      this.farm.decorations = decosData;
-
-      decosData.forEach((deco, index) => {
-        let stage = deco.stage || 1;
-        let hasFruit = deco.hasFruit || false;
-        const isSapling = (deco.id === 'oak_sapling' || deco.id === 'pine_sapling' || deco.id === 'apple_sapling' || deco.id === 'orange_sapling');
-        
-        if (isSapling) {
-          const growTime = (deco.id === 'oak_sapling') ? 240000 : ((deco.id === 'pine_sapling') ? 360000 : 300000);
-          const elapsed = Date.now() - (deco.plantedAt || Date.now());
-          const progress = Math.min(1, elapsed / growTime);
-          stage = progress >= 1 ? 3 : (progress >= 0.5 ? 2 : 1);
-          deco.stage = stage;
-          
-          if (stage === 3 && (deco.id === 'apple_sapling' || deco.id === 'orange_sapling')) {
-            if (deco.hasFruit === undefined) {
-              deco.hasFruit = true;
-            }
-            hasFruit = deco.hasFruit;
-          }
-        }
-
-        const mesh = createDecorationMesh(deco.id, stage, hasFruit);
-        mesh.rotation.y = deco.rotation || 0;
-        const pos = this.farm.getDecorationPosition(deco.col, deco.row);
-        mesh.position.copy(pos);
-        mesh.userData.decorationIndex = index;
-        this.farm.group.add(mesh);
-        this.farm.decorationMeshes.push(mesh);
-      });
-
       this.updateMaxZoomDistance();
     } catch (e) {
       console.error("Arkadaş çiftliği yüklenemedi:", e);
@@ -844,6 +773,7 @@ export class FarmScene {
 
   restoreMyFarm() {
     this.isReadOnly = false;
+    this.farm.friendSaveData = null;
     this.character.group.visible = true;
     this.pet.group.visible = true;
     
@@ -852,13 +782,7 @@ export class FarmScene {
       this.chestSystem.chests.forEach(c => { if (c.mesh) c.mesh.visible = true; });
     }
 
-    this.farm.expansionId = this.farm.loadExpansionId();
-    const exp = FARM_EXPANSIONS.find(e => e.id === this.farm.expansionId) || FARM_EXPANSIONS[0];
-    this.farm.gridRows = exp.gridRows;
-    this.farm.gridCols = exp.gridCols;
-    this.farm.unlockedPlotsCount = this.farm.loadUnlockedPlotsCount();
-
-    this.farm.rebuildGrid();
+    this.farm.rebuildGrid('own');
     this.updateStaticMeshesPositions();
     this.checkMailbox();
     this.updateMaxZoomDistance();

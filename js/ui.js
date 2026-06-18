@@ -10,6 +10,7 @@ export class GameUI {
    */
   constructor(storage) {
     this.coinEl = document.querySelector("#coin-count");
+    this.gemEl = document.querySelector("#gem-count");
     this.toastEl = document.querySelector("#toast");
     this.waterButton = document.querySelector("#water-tool");
     this.selectedCrop = "wheat";
@@ -17,6 +18,7 @@ export class GameUI {
     /** @type {GameStorage} */
     this._storage = storage;
     this.coins = this.loadCoins();
+    this.gems = this.loadGems();
     this.onReset = null;
     this._toastTimer = 0;
 
@@ -25,6 +27,7 @@ export class GameUI {
     });
 
     this.updateCoins(0);
+    this.updateGems(0);
     this.renderSeedList(this.loadLevel());
     this.bindControls();
   }
@@ -165,5 +168,17 @@ export class GameUI {
     const saved = this._storage.loadField("coins");
     if (!Number.isFinite(saved)) return STARTING_COINS;
     return saved >= MIN_PLANTING_COST ? saved : STARTING_COINS;
+  }
+
+  loadGems() {
+    const saved = this._storage.loadField("gems");
+    return Number.isFinite(saved) ? saved : 10;
+  }
+
+  updateGems(delta) {
+    this.gems = Math.max(0, this.gems + delta);
+    if (this.gemEl) this.gemEl.textContent = this.gems.toString();
+    this._storage.saveField("gems", this.gems);
+    if (typeof this.onGemsChange === "function") this.onGemsChange(this.gems);
   }
 }

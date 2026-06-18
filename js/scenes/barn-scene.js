@@ -285,6 +285,15 @@ export class BarnScene {
 
     // Arka planı koyulaştır (Barn modu hissi)
     document.body.className = "is-running no-camera night-time";
+
+    // Kamerayı geriden başlatıp pürüzsüzce odak noktasına getiren zoom-in
+    this.camera.position.set(0, 3.5, 4.5);
+    this.controls.target.set(0, 0.15, 0);
+    this.controls.update();
+
+    this.zoomAnimationProgress = 0;
+    this.zoomAnimationStartPos = new THREE.Vector3(0, 3.5, 4.5);
+    this.zoomAnimationTargetPos = new THREE.Vector3(0, 1.2, 1.9);
   }
 
   pause() {
@@ -425,6 +434,16 @@ export class BarnScene {
   }
 
   update(dt, realNow) {
+    if (this.zoomAnimationProgress < 1) {
+      this.zoomAnimationProgress += dt * 1.5;
+      if (this.zoomAnimationProgress > 1) this.zoomAnimationProgress = 1;
+      
+      const t = this.zoomAnimationProgress;
+      const easedT = t * t * (3 - 2 * t);
+      
+      this.camera.position.lerpVectors(this.zoomAnimationStartPos, this.zoomAnimationTargetPos, easedT);
+    }
+
     if (this.controls) this.controls.update();
 
     this._time += dt;

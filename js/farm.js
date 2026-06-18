@@ -26,10 +26,6 @@ const progressBackMaterial = new THREE.MeshBasicMaterial({ color: 0x17241f, tran
 const progressFillMaterial = new THREE.MeshBasicMaterial({ color: 0x69d47a });
 const particleMaterial = new THREE.MeshStandardMaterial({ color: 0xffdd55, roughness: 0.48 });
 
-export class Farm {
-  /**
-   * @param {GameStorage} storage — merkezi depolama instance'ı
-   */
   constructor(storage) {
     this.group = new THREE.Group();
     this.group.visible = false;
@@ -40,22 +36,23 @@ export class Farm {
     this.decorationMeshes = [];
     /** @type {GameStorage} */
     this._storage = storage;
+    this.friendSaveData = null; // Ziyaret edilen arkadaşın Firestore save verisi
 
     // Hava durumu ve mevsim büyüme çarpanları (dışarıdan ayarlanır)
     this.weatherGrowMultiplier = 1.0;
     this.seasonGrowMultiplier = 1.0;
 
     // Izgara genişleme seviyesi
-    this.expansionId = this.loadExpansionId();
+    this.expansionId = this.loadExpansionId('own');
     const exp = FARM_EXPANSIONS.find(e => e.id === this.expansionId) || FARM_EXPANSIONS[0];
     this.gridRows = exp.gridRows;
     this.gridCols = exp.gridCols;
 
-    this.unlockedPlotsCount = this.loadUnlockedPlotsCount();
+    this.unlockedPlotsCount = this.loadUnlockedPlotsCount('own');
 
     this.createBase();
-    this.load();
-    this.loadDecorations();
+    this.load('own');
+    this.loadDecorations('own');
   }
 
   get placed() {
@@ -205,7 +202,7 @@ export class Farm {
     return Boolean(this.plots[index] && !this.plots[index].cropId);
   }
 
-  plant(index, cropId) {
+  plant(index, cropId, context = 'own') {
     if (this.isLocked(index)) return null;
     const plot = this.plots[index];
     const crop = CROP_TYPES[cropId];
@@ -218,11 +215,11 @@ export class Farm {
     plot.fertilizer = null;
     this.updateFertilizerVisual(plot);
     this.refreshCropMesh(plot, 1);
-    this.save();
+    this.save(context);
     return crop;
   }
 
-  water(index) {
+  water(index, context = 'own') {
     if (this.isLocked(index)) return false;
     const plot = this.plots[index];
     if (!plot || !plot.cropId || this.getProgress(plot, Date.now()) >= 1) return false;
@@ -230,17 +227,17 @@ export class Farm {
     const crop = CROP_TYPES[plot.cropId];
     plot.boostMs = Math.min(plot.boostMs + crop.growTime * 0.1, crop.growTime * 0.35);
     this.createWaterRipple(plot);
-    this.save();
+    this.save(context);
     return true;
   }
 
-  applyFertilizer(index, type) {
+  applyFertilizer(index, type, context = 'own') {
     if (this.isLocked(index)) return false;
     const plot = this.plots[index];
     if (!plot || !plot.cropId || plot.fertilizer || this.getProgress(plot, Date.now()) >= 1) return false;
     plot.fertilizer = type;
     this.updateFertilizerVisual(plot);
-    this.save();
+    this.save(context);
     return true;
   }
 
@@ -262,7 +259,7 @@ export class Farm {
     }
   }
 
-  harvest(index) {
+  harvest(index, context = 'own') {
     if (this.isLocked(index)) return null;
     const plot = this.plots[index];
     const progress = this.getProgress(plot, Date.now());
@@ -274,7 +271,7 @@ export class Farm {
 
     this.createHarvestParticles(plot.group.position);
     this.clearPlot(plot);
-    this.save();
+    this.save(context);
     return { crop, fertilizer, isWithered };
   }
 
@@ -466,7 +463,8 @@ export class Farm {
     });
   }
 
-  save() {
+  save(context = 'own') {
+    if (context === 'friend') return;
     const data = this.plots.map((plot) => ({
       cropId: plot.cropId,
       plantedAt: plot.plantedAt,
@@ -476,9 +474,17 @@ export class Farm {
     this._storage.saveField("plots", data);
   }
 
-  load() {
+  load(context = 'own') {
     try {
-      const data = this._storage.loadField("plots") || [];
+      let data = [];
+      if (context === 'friend') {
+        if (this.friendSaveData && this.friendSaveData["arciftlik:farm:state"]) {
+          const farmState = JSON.parse(this.friendSaveData["arciftlik:farm:state"]);
+          data = farmState.plots || [];
+        }
+      } else {
+        data = this._storage.loadField("plots") || [];
+      }
       data.forEach((saved, index) => {
         if (!saved || !this.plots[index]) return;
         const plot = this.plots[index];
@@ -494,13 +500,21 @@ export class Farm {
     } catch {}
   }
 
-  loadUnlockedPlotsCount() {
+  loadUnlockedPlotsCount(context = 'own') {
+    if (context === 'friend') {
+      if (this.friendSaveData && this.friendSaveData["arciftlik:farm:state"]) {
+        const farmState = JSON.parse(this.friendSaveData["arciftlik:farm:state"]);
+        return Number.isInteger(farmState.unlockedPlots) ? farmState.unlockedPlots : 4;
+      }
+      return 4;
+    }
     const saved = this._storage.loadField("unlockedPlots");
     const maxPlots = this.maxPlotsOfCurrentExpansion();
     return Number.isInteger(saved) && saved >= 1 && saved <= 36 ? Math.min(saved, maxPlots) : Math.min(DEFAULT_UNLOCKED_PLOTS, maxPlots);
   }
 
-  saveUnlockedPlotsCount() {
+  saveUnlockedPlotsCount(context = 'own') {
+    if (context === 'friend') return;
     this._storage.saveField("unlockedPlots", this.unlockedPlotsCount);
   }
 
@@ -630,15 +644,23 @@ export class Farm {
       }
     });
 
-    this.saveDecorations();
+    this.saveDecorations(context);
     return true;
   }
 
-  loadDecorations() {
+  loadDecorations(context = 'own') {
     this.decorationMeshes.forEach(mesh => this.group.remove(mesh));
     this.decorationMeshes = [];
 
-    const data = this._storage.loadField("decorations") || [];
+    let data = [];
+    if (context === 'friend') {
+      if (this.friendSaveData && this.friendSaveData["arciftlik:farm:state"]) {
+        const farmState = JSON.parse(this.friendSaveData["arciftlik:farm:state"]);
+        data = farmState.decorations || [];
+      }
+    } else {
+      data = this._storage.loadField("decorations") || [];
+    }
     this.decorations = data;
 
     data.forEach((deco, index) => {
@@ -692,18 +714,27 @@ export class Farm {
     }
   }
 
-  saveDecorations() {
+  saveDecorations(context = 'own') {
+    if (context === 'friend') return;
     this._storage.saveField("decorations", this.decorations);
   }
 
   // ── Çiftlik Genişletme API ─────────────────────────────────────
   
-  loadExpansionId() {
+  loadExpansionId(context = 'own') {
+    if (context === 'friend') {
+      if (this.friendSaveData && this.friendSaveData["arciftlik:farm:state"]) {
+        const farmState = JSON.parse(this.friendSaveData["arciftlik:farm:state"]);
+        return Number.isInteger(farmState.expansionId) ? farmState.expansionId : 1;
+      }
+      return 1;
+    }
     const saved = this._storage.loadField("expansionId");
     return Number.isInteger(saved) && saved >= 1 && saved <= 5 ? saved : 1;
   }
 
-  saveExpansionId() {
+  saveExpansionId(context = 'own') {
+    if (context === 'friend') return;
     this._storage.saveField("expansionId", this.expansionId);
   }
 
@@ -739,7 +770,13 @@ export class Farm {
     return true;
   }
 
-  rebuildGrid() {
+  rebuildGrid(context = 'own') {
+    this.expansionId = this.loadExpansionId(context);
+    const exp = FARM_EXPANSIONS.find(e => e.id === this.expansionId) || FARM_EXPANSIONS[0];
+    this.gridRows = exp.gridRows;
+    this.gridCols = exp.gridCols;
+    this.unlockedPlotsCount = this.loadUnlockedPlotsCount(context);
+
     const specialChildren = [];
     this.group.children.forEach(c => {
       // Keep character, pet, chests, fireflies, and static meshes (mailbox, trading post)
@@ -761,8 +798,8 @@ export class Farm {
     this.plotMeshes = [];
 
     this.createBase();
-    this.load();
-    this.loadDecorations();
+    this.load(context);
+    this.loadDecorations(context);
 
     // Restore special children
     specialChildren.forEach(c => this.group.add(c));

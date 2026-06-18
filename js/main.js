@@ -959,11 +959,78 @@ if (resetFarmBtn) {
 
 
 
+let activeMarketCategory = "all";
+const MARKET_CATALOG = [
+  {
+    id: "plot",
+    name: "Tarla Genişletmesi ⊞",
+    desc: "4x4 tarlada ekim alanı açar.",
+    category: "expansion",
+    price: 100,
+    unlockLevel: 1
+  },
+  {
+    id: "pet",
+    name: "Shiba Companion 🐕",
+    desc: "Tarlada dolaşan ve altın kazandıran şirin shiba köpeği.",
+    category: "pet",
+    price: 150,
+    unlockLevel: 1
+  },
+  {
+    id: "fertilizer_basic",
+    name: "Basit Gübre 🧪",
+    desc: "Büyüme hızını 2 katına (x2) çıkarır.",
+    category: "fertilizer",
+    price: 20,
+    unlockLevel: 1
+  },
+  {
+    id: "fertilizer_super",
+    name: "Süper Gübre 🧪⚡",
+    desc: "Büyüme hızını 3 katına (x3) çıkarır.",
+    category: "fertilizer",
+    price: 50,
+    unlockLevel: 2
+  },
+  {
+    id: "fertilizer_golden",
+    name: "Altın Gübre ✨🧪",
+    desc: "Büyüme hızını 4 katına (x4) çıkarır ve hasatta %100 altın ürün verir.",
+    category: "fertilizer",
+    price: 120,
+    unlockLevel: 4
+  },
+  {
+    id: "nails",
+    name: "Çivi 🔩",
+    desc: "Mobilya üretimi için temel malzeme.",
+    category: "material",
+    price: 10,
+    unlockLevel: 1
+  },
+  {
+    id: "varnish",
+    name: "Cila 🛢️",
+    desc: "Mobilyalara parlaklık vermek için kullanılır.",
+    category: "material",
+    price: 25,
+    unlockLevel: 2
+  },
+  {
+    id: "hinges",
+    name: "Menteşe 🗜️",
+    desc: "Dolap ve yatak gibi eşyalar için gerekir.",
+    category: "material",
+    price: 40,
+    unlockLevel: 3
+  }
+];
+
 // Market Modal
 const marketPanel = document.querySelector("#market-panel");
 const openMarketBtn = document.querySelector("#open-market");
 const closeMarketBtn = document.querySelector("#close-market");
-const buyPlotBtn = document.querySelector("#buy-plot");
 
 openMarketBtn.addEventListener("click", (e) => {
   e.stopPropagation();
@@ -978,23 +1045,44 @@ closeMarketBtn.addEventListener("click", (e) => {
   marketPanel.classList.remove("is-visible");
 });
 
+// Market Categories tab buttons init
+const marketCatBtns = document.querySelectorAll(".market-category-btn");
+marketCatBtns.forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    marketCatBtns.forEach(b => {
+      b.classList.remove("active");
+      b.style.background = "#5c3a21";
+    });
+    btn.classList.add("active");
+    btn.style.background = "#e67e22";
+    activeMarketCategory = btn.dataset.category;
+    updateMarketUI();
+  });
+});
+
 // Warehouse Modal
 const warehousePanel = document.querySelector("#warehouse-panel");
-const openWarehouseBtn = document.querySelector("#open-warehouse");
 const closeWarehouseBtn = document.querySelector("#close-warehouse");
 
-openWarehouseBtn.addEventListener("click", (e) => {
-  e.stopPropagation();
-  if (audioSystem) audioSystem.playPlace();
-  updateWarehouseUI();
-  warehousePanel.classList.add("is-visible");
-});
+if (closeWarehouseBtn) {
+  closeWarehouseBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audioSystem) audioSystem.playPlace();
+    warehousePanel.classList.remove("is-visible");
+  });
+}
 
-closeWarehouseBtn.addEventListener("click", (e) => {
-  e.stopPropagation();
-  if (audioSystem) audioSystem.playPlace();
-  warehousePanel.classList.remove("is-visible");
-});
+const goToFarmHudBtn = document.querySelector("#go-to-farm-hud-btn");
+if (goToFarmHudBtn) {
+  goToFarmHudBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audioSystem) audioSystem.playPlace();
+    if (sceneManager) {
+      sceneManager.switchScene("farm");
+    }
+  });
+}
 
 // Carpenter Modal
 const carpenterPanel = document.querySelector("#carpenter-modal");
@@ -1024,54 +1112,7 @@ window.addEventListener("open-warehouse-panel", () => {
   warehousePanel.classList.add("is-visible");
 });
 
-buyPlotBtn.addEventListener("click", (e) => {
-  e.stopPropagation();
-  if (!sceneManager || !ui) return;
-  const count = sceneManager.scenes.farm.farm.unlockedPlotsCount;
-  const maxPlots = sceneManager.scenes.farm.farm.maxPlotsOfCurrentExpansion();
-  if (count >= maxPlots) return;
-
-  const price = 50 * (count - 1);
-  if (ui.coins >= price) {
-    ui.updateCoins(-price);
-    const success = sceneManager.scenes.farm.farm.unlockPlot();
-    if (success) {
-      if (audioSystem) audioSystem.playPlace();
-      ui.showToast("Yeni arsa genişletildi!");
-      updateMarketUI();
-    }
-  } else {
-    ui.showToast("🪙 Yetersiz Altın!");
-  }
-});
-
-const buyPetBtn = document.querySelector("#buy-pet");
-buyPetBtn.addEventListener("click", (e) => {
-  e.stopPropagation();
-  if (!sceneManager || !ui) return;
-  const petData = globalStorage.loadField("pet") || {};
-  if (petData.purchased) return;
-  
-  const petCost = 150;
-  if (ui.coins >= petCost) {
-    ui.updateCoins(-petCost);
-    
-    globalStorage.saveField("pet", {
-      purchased: true,
-      friendshipLevel: 1,
-      friendshipXP: 0
-    });
-    
-    sceneManager.scenes.farm.pet.purchase();
-    sceneManager.scenes.barn.shibaGroup.visible = true;
-
-    if (audioSystem) audioSystem.playPlace();
-    ui.showToast("Shiba yoldaşınız açıldı! 🐕");
-    updateMarketUI();
-  } else {
-    ui.showToast("🪙 Yetersiz Altın!");
-  }
-});
+// Dynamic purchase handling is done via handleMarketPurchase(itemId)
 
 // Sipariş Paneli
 const ordersPanel = document.querySelector("#orders-panel");
@@ -1198,60 +1239,135 @@ expandConfirmBtn.addEventListener("click", (e) => {
 
 // UI Helper fonksiyonları
 function updateMarketUI() {
-  const count = sceneManager.scenes.farm.farm.unlockedPlotsCount;
-  const maxPlots = sceneManager.scenes.farm.farm.maxPlotsOfCurrentExpansion();
-  document.querySelector("#plot-expansion-stats").textContent = `Açılan: ${count}/${maxPlots}`;
-
-  const price = 50 * (count - 1);
-  buyPlotBtn.textContent = count >= maxPlots ? "Maksimum Parsel" : `Satın Al: ${price} 🪙`;
-  buyPlotBtn.disabled = count >= maxPlots || ui.coins < price;
-
-  const petData = globalStorage.loadField("pet") || {};
-  const petStatusEl = document.querySelector("#pet-status");
-  if (petData.purchased) {
-    petStatusEl.textContent = `Sahip Olundu (Lv ${petData.friendshipLevel || 1})`;
-    buyPetBtn.textContent = "Satın Alındı 🐕";
-    buyPetBtn.disabled = true;
-  } else {
-    petStatusEl.textContent = "Satın Alınmadı";
-    buyPetBtn.textContent = "Satın Al: 150 🪙";
-    buyPetBtn.disabled = ui.coins < 150;
-  }
-
-  // Gübre envanter ve buton durumları
-  if (inventory) {
-    const basicCount = inventory.getCount("fertilizer_basic");
-    const superCount = inventory.getCount("fertilizer_super");
-    const goldenCount = inventory.getCount("fertilizer_golden");
+  const container = document.querySelector(".market-items");
+  if (!container) return;
+  
+  container.innerHTML = "";
+  const charLevel = Number(globalStorage.loadField("level")) || 1;
+  
+  const filteredCatalog = MARKET_CATALOG.filter(item => {
+    if (activeMarketCategory === "all") return true;
+    return item.category === activeMarketCategory;
+  });
+  
+  filteredCatalog.forEach(item => {
+    const isLocked = charLevel < item.unlockLevel;
+    const itemEl = document.createElement("div");
+    itemEl.className = "market-item";
+    if (isLocked) {
+      itemEl.style.opacity = "0.5";
+      itemEl.style.background = "rgba(0,0,0,0.5)";
+      itemEl.style.border = "1.5px dashed rgba(255,255,255,0.2)";
+    }
     
-    const fBasicOwned = document.querySelector("#fertilizer-basic-owned");
-    const fSuperOwned = document.querySelector("#fertilizer-super-owned");
-    const fGoldenOwned = document.querySelector("#fertilizer-golden-owned");
-    const fBasicBuy = document.querySelector("#buy-fertilizer-basic");
-    const fSuperBuy = document.querySelector("#buy-fertilizer-super");
-    const fGoldenBuy = document.querySelector("#buy-fertilizer-golden");
-
-    if (fBasicOwned) fBasicOwned.textContent = `Sahip Olunan: ${basicCount}`;
-    if (fSuperOwned) fSuperOwned.textContent = `Sahip Olunan: ${superCount}`;
-    if (fGoldenOwned) fGoldenOwned.textContent = `Sahip Olunan: ${goldenCount}`;
-
-    if (fBasicBuy) fBasicBuy.disabled = ui.coins < 20;
-    if (fSuperBuy) fSuperBuy.disabled = ui.coins < 50;
-    if (fGoldenBuy) fGoldenBuy.disabled = ui.coins < 120;
+    let desc = item.desc;
+    let buttonText = `Satın Al (${item.price} 🪙)`;
+    let disabled = ui.coins < item.price;
+    let statusText = "";
     
-    // Marangoz malzemeleri
-    const materials = [
-      { id: "nails", price: 10 },
-      { id: "varnish", price: 25 },
-      { id: "hinges", price: 40 }
-    ];
+    if (isLocked) {
+      desc = `🔒 Kilitli (Gereken Seviye: ${item.unlockLevel})`;
+      buttonText = "Kilitli";
+      disabled = true;
+    } else {
+      if (item.id === "plot") {
+        const count = sceneManager.scenes.farm.farm.unlockedPlotsCount;
+        const maxPlots = sceneManager.scenes.farm.farm.maxPlotsOfCurrentExpansion();
+        statusText = `Açılan: ${count}/${maxPlots}`;
+        const plotPrice = 50 * (count - 1);
+        buttonText = count >= maxPlots ? "Maksimum Parsel" : `Satın Al (${plotPrice} 🪙)`;
+        disabled = count >= maxPlots || ui.coins < plotPrice;
+      } else if (item.id === "pet") {
+        const petData = globalStorage.loadField("pet") || {};
+        if (petData.purchased) {
+          statusText = `Sahip Olundu (Lv ${petData.friendshipLevel || 1})`;
+          buttonText = "Satın Alındı 🐕";
+          disabled = true;
+        } else {
+          statusText = "Satın Alınmadı";
+          buttonText = `Satın Al (${item.price} 🪙)`;
+          disabled = ui.coins < item.price;
+        }
+      } else if (item.category === "fertilizer") {
+        const owned = inventory ? inventory.getCount(item.id) : 0;
+        statusText = `Sahip Olunan: ${owned}`;
+        disabled = ui.coins < item.price;
+      } else if (item.category === "material") {
+        const owned = inventory ? inventory.getCount(item.id) : 0;
+        statusText = `Sahip Olunan: ${owned}`;
+        disabled = ui.coins < item.price;
+      }
+    }
     
-    materials.forEach(mat => {
-      const ownedEl = document.querySelector(`#material-${mat.id}-owned`);
-      const buyBtn = document.querySelector(`#buy-material-${mat.id}`);
-      if (ownedEl) ownedEl.textContent = `Sahip Olunan: ${inventory.getCount(mat.id)}`;
-      if (buyBtn) buyBtn.disabled = ui.coins < mat.price;
-    });
+    itemEl.innerHTML = `
+      <div class="item-info">
+        <h3>${item.name}</h3>
+        <p>${desc}</p>
+        ${statusText ? `<div class="item-stats" style="font-size: 11px; color: var(--accent);">${statusText}</div>` : ""}
+      </div>
+      <button class="primary-button market-buy-btn" data-id="${item.id}" ${disabled ? "disabled" : ""} style="margin: 0; min-width: 100px; font-size: 12px; padding: 6px 12px;">
+        ${buttonText}
+      </button>
+    `;
+    
+    if (!disabled && !isLocked) {
+      const btn = itemEl.querySelector(".market-buy-btn");
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handleMarketPurchase(item.id);
+      });
+    }
+    
+    container.appendChild(itemEl);
+  });
+}
+
+function handleMarketPurchase(itemId) {
+  if (!sceneManager || !ui) return;
+  
+  if (itemId === "plot") {
+    const count = sceneManager.scenes.farm.farm.unlockedPlotsCount;
+    const plotPrice = 50 * (count - 1);
+    if (ui.coins >= plotPrice) {
+      ui.updateCoins(-plotPrice);
+      const success = sceneManager.scenes.farm.farm.unlockPlot();
+      if (success) {
+        if (audioSystem) audioSystem.playPlace();
+        ui.showToast("Yeni arsa genişletildi!");
+        updateMarketUI();
+      }
+    } else {
+      ui.showToast("🪙 Yetersiz Altın!");
+    }
+  } else if (itemId === "pet") {
+    const petCost = 150;
+    if (ui.coins >= petCost) {
+      ui.updateCoins(-petCost);
+      globalStorage.saveField("pet", {
+        purchased: true,
+        friendshipLevel: 1,
+        friendshipXP: 0
+      });
+      sceneManager.scenes.farm.pet.purchase();
+      sceneManager.scenes.barn.shibaGroup.visible = true;
+      if (audioSystem) audioSystem.playPlace();
+      ui.showToast("Shiba yoldaşınız açıldı! 🐕");
+      updateMarketUI();
+    } else {
+      ui.showToast("🪙 Yetersiz Altın!");
+    }
+  } else if (itemId.startsWith("fertilizer_") || itemId === "nails" || itemId === "varnish" || itemId === "hinges") {
+    const catalogItem = MARKET_CATALOG.find(item => item.id === itemId);
+    if (catalogItem && ui.coins >= catalogItem.price) {
+      ui.updateCoins(-catalogItem.price);
+      inventory.add(itemId, 1);
+      if (audioSystem) audioSystem.playPlace();
+      ui.showToast(`${catalogItem.name} satın alındı!`);
+      updateMarketUI();
+      updateWarehouseUI();
+    } else {
+      ui.showToast("🪙 Yetersiz Altın!");
+    }
   }
 }
 
@@ -1867,9 +1983,16 @@ if (claimAllGiftsBtn) {
         let coinsAdded = 0;
         const fertAdded = { fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0 };
         
+        let gemsAdded = 0;
         claimed.forEach(gift => {
           if (gift.type === "coins_50") {
             coinsAdded += 50;
+          } else if (gift.type.startsWith("coins_")) {
+            const amt = parseInt(gift.type.split("_")[1]) || 0;
+            coinsAdded += amt;
+          } else if (gift.type.startsWith("gems_")) {
+            const amt = parseInt(gift.type.split("_")[1]) || 0;
+            gemsAdded += amt;
           } else if (fertAdded[gift.type] !== undefined) {
             fertAdded[gift.type] += 1;
           }
@@ -1879,6 +2002,10 @@ if (claimAllGiftsBtn) {
         if (coinsAdded > 0) {
           ui.updateCoins(coinsAdded);
           parts.push(`🪙 ${coinsAdded} Altın`);
+        }
+        if (gemsAdded > 0) {
+          ui.updateGems(gemsAdded);
+          parts.push(`💎 ${gemsAdded} Elmas`);
         }
         Object.keys(fertAdded).forEach(k => {
           if (fertAdded[k] > 0) {
@@ -1914,6 +2041,16 @@ if (visitBackBtn) {
     scene.restoreMyFarm();
     if (visitOverlay) visitOverlay.style.display = "none";
     ui.showToast("Kendi çiftliğinize döndünüz. 🏡");
+    
+    // Ziyaret bitişinde tam state reset yap; tüm interval ve geçici olayları temizle
+    if (window.visitIntervals) {
+      window.visitIntervals.forEach(clearInterval);
+      window.visitIntervals = [];
+    }
+    if (window.visitCleanups) {
+      window.visitCleanups.forEach(c => c());
+      window.visitCleanups = [];
+    }
   });
 }
 
@@ -1955,33 +2092,140 @@ if (closeGiftBtn && giftModal) {
   });
 }
 
-document.querySelectorAll(".gift-option-btn").forEach(btn => {
-  btn.onclick = async (e) => {
-    e.stopPropagation();
-    const giftType = btn.dataset.gift;
-    const friendUid = visitOverlay ? visitOverlay.dataset.friendUid : null;
-    const friendName = visitOverlay ? visitOverlay.dataset.friendName : "";
-    if (!friendUid) return;
+// Free gift amount input & currency toggle logic
+const giftAmountInput = document.querySelector("#gift-amount-input");
+const giftWarningEl = document.querySelector("#gift-balance-warning");
+const sendGiftBtn = document.querySelector("#send-gift-btn");
+const giftHistoryList = document.querySelector("#gift-history-list");
 
+function validateGiftInput() {
+  if (!giftAmountInput || !sendGiftBtn) return;
+  const amount = parseInt(giftAmountInput.value) || 0;
+  const currency = document.querySelector('input[name="gift-currency"]:checked')?.value || "coins";
+  
+  let hasBalance = false;
+  if (currency === "coins") {
+    hasBalance = ui.coins >= amount;
+  } else {
+    hasBalance = ui.gems >= amount;
+  }
+  
+  if (amount <= 0) {
+    giftAmountInput.style.borderColor = "rgba(255,255,255,0.2)";
+    if (giftWarningEl) giftWarningEl.style.display = "none";
+    sendGiftBtn.disabled = true;
+  } else if (!hasBalance) {
+    giftAmountInput.style.borderColor = "#e74c3c";
+    if (giftWarningEl) {
+      giftWarningEl.textContent = "Yetersiz Bakiye!";
+      giftWarningEl.style.display = "block";
+    }
+    sendGiftBtn.disabled = true;
+  } else {
+    giftAmountInput.style.borderColor = "#2ecc71";
+    if (giftWarningEl) giftWarningEl.style.display = "none";
+    sendGiftBtn.disabled = false;
+  }
+}
+
+if (giftAmountInput) {
+  giftAmountInput.addEventListener("input", validateGiftInput);
+}
+
+// Listen to radio changes
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.name === "gift-currency") {
+    validateGiftInput();
+  }
+});
+
+function loadGiftHistory() {
+  const saved = globalStorage.loadField("giftHistory");
+  return Array.isArray(saved) ? saved : [];
+}
+
+function saveGiftHistory(history) {
+  globalStorage.saveField("giftHistory", history);
+}
+
+function renderGiftHistory() {
+  if (!giftHistoryList) return;
+  const history = loadGiftHistory();
+  if (history.length === 0) {
+    giftHistoryList.innerHTML = `<div style="color: rgba(255,255,255,0.4); text-align: center; font-style: italic;">Geçmiş boş.</div>`;
+    return;
+  }
+  giftHistoryList.innerHTML = history.slice().reverse().map(item => {
+    const dateStr = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const sym = item.type === "coins" ? "🪙" : "💎";
+    return `<div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 2px 0;">
+      <span>${item.friendName}</span>
+      <span>${sym} ${item.amount} (${dateStr})</span>
+    </div>`;
+  }).join("");
+}
+
+// When opening the modal, update/render history
+if (visitGiftBtn) {
+  visitGiftBtn.addEventListener("click", () => {
+    renderGiftHistory();
+    validateGiftInput();
+  });
+}
+
+if (sendGiftBtn) {
+  sendGiftBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const friendUid = visitOverlay ? visitOverlay.dataset.friendUid : null;
+    const friendName = visitOverlay ? visitOverlay.dataset.friendName : "Arkadaş";
+    if (!friendUid) return;
+    
+    const amount = parseInt(giftAmountInput.value) || 0;
+    const currency = document.querySelector('input[name="gift-currency"]:checked')?.value || "coins";
+    
+    // Check cooldown
+    const history = loadGiftHistory();
+    const lastSent = history.find(item => item.friendUid === friendUid && (Date.now() - item.timestamp < 24 * 60 * 60 * 1000));
+    if (lastSent) {
+      const remainingMs = 24 * 60 * 60 * 1000 - (Date.now() - lastSent.timestamp);
+      const hours = Math.ceil(remainingMs / (60 * 60 * 1000));
+      ui.showToast(`❌ Bu arkadaşınıza hediye göndermek için ${hours} saat beklemelisiniz!`);
+      return;
+    }
+    
+    // Verify balance
+    if (currency === "coins") {
+      if (ui.coins < amount) return;
+      ui.updateCoins(-amount);
+    } else {
+      if (ui.gems < amount) return;
+      ui.updateGems(-amount);
+    }
+    
     try {
-      if (giftType === "coins_50") {
-        if (ui.coins < 50) {
-          ui.showToast("🪙 Yetersiz Altın!");
-          return;
-        }
-        ui.updateCoins(-50);
-      }
-      
       const userSnap = await firebaseService.loadOrCreateProfile(firebaseService.auth.currentUser);
       const myName = userSnap.nickname || "Arkadaş";
+      const giftType = `${currency}_${amount}`;
       await socialSystem.sendGift(friendUid, myName, giftType);
-      ui.showToast(`🎁 ${friendName} arkadaşınıza hediye gönderildi!`);
+      
+      // Save history
+      history.push({
+        friendUid,
+        friendName,
+        type: currency,
+        amount,
+        timestamp: Date.now()
+      });
+      if (history.length > 10) history.shift();
+      saveGiftHistory(history);
+      
+      ui.showToast(`🎁 ${friendName} arkadaşınıza ${amount} ${currency === 'coins' ? 'Altın' : 'Elmas'} gönderildi!`);
       if (giftModal) giftModal.classList.remove("is-visible");
     } catch (err) {
       ui.showToast(err.message);
     }
-  };
-});
+  });
+}
 
 // Render Loop
 let lastTime = performance.now();
@@ -2002,6 +2246,11 @@ function render() {
   sceneManager.update(dt, realNow);
   if (typeof updateBakeryUI === "function") {
     updateBakeryUI();
+  }
+  
+  if (realNow - lastHudBadgeUpdateTime > 1000) {
+    updateRipeCropsBadge();
+    lastHudBadgeUpdateTime = realNow;
   }
 
   sceneManager.render();
@@ -2210,9 +2459,16 @@ window.addEventListener("mailbox-clicked", async () => {
       let coinsAdded = 0;
       const fertAdded = { fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0 };
       
+      let gemsAdded = 0;
       claimed.forEach(gift => {
         if (gift.type === "coins_50") {
           coinsAdded += 50;
+        } else if (gift.type.startsWith("coins_")) {
+          const amt = parseInt(gift.type.split("_")[1]) || 0;
+          coinsAdded += amt;
+        } else if (gift.type.startsWith("gems_")) {
+          const amt = parseInt(gift.type.split("_")[1]) || 0;
+          gemsAdded += amt;
         } else if (fertAdded[gift.type] !== undefined) {
           fertAdded[gift.type] += 1;
         }
@@ -2222,6 +2478,10 @@ window.addEventListener("mailbox-clicked", async () => {
       if (coinsAdded > 0) {
         ui.updateCoins(coinsAdded);
         parts.push(`🪙 ${coinsAdded} Altın`);
+      }
+      if (gemsAdded > 0) {
+        ui.updateGems(gemsAdded);
+        parts.push(`💎 ${gemsAdded} Elmas`);
       }
       Object.keys(fertAdded).forEach(k => {
         if (fertAdded[k] > 0) {
@@ -2588,6 +2848,9 @@ let bakeryState = {
   duration: 0,
   isReady: false
 };
+let bakeryOrders = [];
+let lastOrdersRenderTime = 0;
+let lastOrderSpawnTime = Date.now();
 
 function loadBakeryState() {
   const saved = bakeryStorage.loadField("state");
@@ -2599,10 +2862,29 @@ function loadBakeryState() {
       isReady: Boolean(saved.isReady)
     };
   }
+  const savedOrders = bakeryStorage.loadField("orders");
+  if (Array.isArray(savedOrders)) {
+    bakeryOrders = savedOrders;
+  } else {
+    bakeryOrders = [];
+  }
+  const savedSpawnTime = bakeryStorage.loadField("lastOrderSpawnTime");
+  if (savedSpawnTime) {
+    lastOrderSpawnTime = Number(savedSpawnTime);
+  } else {
+    lastOrderSpawnTime = Date.now();
+  }
 }
 
 function saveBakeryState() {
   bakeryStorage.saveField("state", bakeryState);
+  bakeryStorage.saveField("orders", bakeryOrders);
+  bakeryStorage.saveField("lastOrderSpawnTime", lastOrderSpawnTime);
+}
+
+function saveBakeryOrders() {
+  bakeryStorage.saveField("orders", bakeryOrders);
+  bakeryStorage.saveField("lastOrderSpawnTime", lastOrderSpawnTime);
 }
 
 function initBakeryUI() {
@@ -2624,6 +2906,27 @@ function initBakeryUI() {
       collectBakedItem();
     });
   }
+
+  const tabBtns = document.querySelectorAll(".bakery-tab-btn");
+  tabBtns.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      tabBtns.forEach(b => {
+        b.classList.remove("active");
+        b.style.background = "#5c3a21";
+      });
+      btn.classList.add("active");
+      btn.style.background = "#e67e22";
+      
+      const tab = btn.dataset.tab;
+      document.querySelector("#bakery-recipes-tab").style.display = tab === "recipes" ? "block" : "none";
+      document.querySelector("#bakery-orders-tab").style.display = tab === "orders" ? "block" : "none";
+      
+      if (tab === "orders") {
+        renderBakeryOrders();
+      }
+    });
+  });
 
   updateBakeryUI();
 }
@@ -2695,7 +2998,14 @@ function updateBakeryUI() {
 
   if (!statusEl || !progressContainer || !progressBar || !collectBtn) return;
 
-  // Dinamik tarif gereksinimleri güncellemesi
+  trySpawnBakeryOrder();
+  
+  const ordersTab = document.querySelector("#bakery-orders-tab");
+  if (ordersTab && ordersTab.style.display === "block" && Date.now() - lastOrdersRenderTime > 1000) {
+    renderBakeryOrders();
+    lastOrdersRenderTime = Date.now();
+  }
+
   const INGREDIENT_NAMES = {
     wheat: "Buğday 🌾",
     carrot: "Havuç 🥕",
@@ -2714,7 +3024,7 @@ function updateBakeryUI() {
       let reqsTextParts = [];
       
       for (const [item, count] of Object.entries(recipe.reqs)) {
-        const hasCount = inventory.getCount(item);
+        const hasCount = inventory ? inventory.getCount(item) : 0;
         const name = INGREDIENT_NAMES[item] || item;
         const color = hasCount >= count ? "#2ecc71" : "#e74c3c";
         if (hasCount < count) canBake = false;
@@ -2726,7 +3036,6 @@ function updateBakeryUI() {
         reqsEl.innerHTML = `Gereken: ${reqsTextParts.join(", ")}`;
       }
 
-      // Buton durumu
       if (!canBake || bakeryState.activeRecipe) {
         btn.style.filter = "grayscale(100%)";
         btn.style.opacity = "0.5";
@@ -2768,6 +3077,209 @@ function updateBakeryUI() {
         updateBakeryUI();
       }
     }
+  }
+}
+
+function generateBakeryOrder() {
+  const possibleItems = Object.keys(BAKERY_RECIPES);
+  const orderItemsCount = Math.random() < 0.7 ? 1 : 2;
+  const reqs = {};
+  let totalCoins = 0;
+  let totalXP = 0;
+  
+  const shuffled = [...possibleItems].sort(() => 0.5 - Math.random());
+  for (let i = 0; i < orderItemsCount; i++) {
+    const item = shuffled[i];
+    const qty = Math.floor(Math.random() * 2) + 1;
+    reqs[item] = qty;
+    
+    const sellInfo = BAKERY_SELL_ITEMS[item] || { price: 20 };
+    const recipe = BAKERY_RECIPES[item] || { rewardXP: 10 };
+    totalCoins += Math.round(sellInfo.price * qty * 1.3);
+    totalXP += Math.round(recipe.rewardXP * qty * 1.2);
+  }
+  
+  return {
+    id: "order_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+    reqs,
+    rewardCoins: totalCoins,
+    rewardXP: totalXP,
+    expiresAt: Date.now() + 10 * 60 * 1000
+  };
+}
+
+function trySpawnBakeryOrder() {
+  const now = Date.now();
+  let changed = false;
+  
+  const unexpiredOrders = bakeryOrders.filter(order => {
+    if (order.expiresAt && now > order.expiresAt) {
+      changed = true;
+      return false;
+    }
+    return true;
+  });
+  
+  if (changed) {
+    bakeryOrders = unexpiredOrders;
+  }
+  
+  if (bakeryOrders.length < 5) {
+    if (bakeryOrders.length === 0 || (now - lastOrderSpawnTime >= 5 * 60 * 1000)) {
+      bakeryOrders.push(generateBakeryOrder());
+      lastOrderSpawnTime = now;
+      changed = true;
+    }
+  }
+  
+  if (changed) {
+    saveBakeryOrders();
+  }
+}
+
+function renderBakeryOrders() {
+  const container = document.querySelector("#bakery-orders-list");
+  if (!container) return;
+  
+  if (bakeryOrders.length === 0) {
+    container.innerHTML = `<p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; margin-top: 15px;">Şu an yeni sipariş yok. 5 dakika içinde yenisi gelecek.</p>`;
+    return;
+  }
+  
+  const now = Date.now();
+  container.innerHTML = "";
+  
+  bakeryOrders.forEach((order, index) => {
+    const remaining = Math.max(0, order.expiresAt - now);
+    const m = Math.floor(remaining / 60000);
+    const s = Math.floor((remaining % 60000) / 1000);
+    const remainingStr = remaining > 0 ? `${m}d ${s}s` : "Süresi Doldu";
+    
+    let canDeliver = true;
+    const reqsHTMLParts = [];
+    
+    const EMojis = {
+      flour: "📦",
+      bread: "🍞",
+      strawberry_cake: "🍰",
+      blueberry_pie: "🥧",
+      carrot_cake: "🧁"
+    };
+    
+    const ItemNames = {
+      flour: "Un",
+      bread: "Ekmek",
+      strawberry_cake: "Çilekli Kek",
+      blueberry_pie: "Mavi Yemiş Turtası",
+      carrot_cake: "Havuçlu Kek"
+    };
+    
+    for (const [itemId, qty] of Object.entries(order.reqs)) {
+      const has = inventory ? inventory.getCount(itemId) : 0;
+      if (has < qty) canDeliver = false;
+      const color = has >= qty ? "#2ecc71" : "#e74c3c";
+      const emoji = EMojis[itemId] || "📦";
+      const name = ItemNames[itemId] || itemId;
+      reqsHTMLParts.push(`
+        <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); color: ${color};">
+          ${emoji} ${name}: ${has}/${qty}
+        </span>
+      `);
+    }
+    
+    const orderCard = document.createElement("div");
+    orderCard.id = `bakery-order-${order.id}`;
+    orderCard.className = "market-item";
+    orderCard.style.padding = "10px";
+    orderCard.style.borderRadius = "8px";
+    orderCard.style.background = "rgba(0,0,0,0.3)";
+    orderCard.style.border = "1px solid rgba(255,255,255,0.1)";
+    orderCard.style.display = "flex";
+    orderCard.style.flexDirection = "column";
+    orderCard.style.gap = "6px";
+    orderCard.style.transition = "transform 0.3s, opacity 0.3s";
+    
+    orderCard.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+        <div>
+          <div style="font-weight: bold; font-size: 13px; color: #fff;">Sipariş #${index + 1}</div>
+          <div style="font-size: 11px; color: #aaa;">Kalan Süre: ${remainingStr}</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 12px; color: #2ecc71; font-weight: bold;">+${order.rewardCoins} 🪙</div>
+          <div style="font-size: 11px; color: #3498db;">+${order.rewardXP} XP</div>
+        </div>
+      </div>
+      
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0;">
+        ${reqsHTMLParts.join("")}
+      </div>
+      
+      <button class="primary-button deliver-order-btn" data-id="${order.id}" ${canDeliver ? "" : "disabled"} style="margin: 0; padding: 6px; font-size: 12px; background: ${canDeliver ? "linear-gradient(180deg, #2ecc71, #27ae60)" : "#555"}; border-color: ${canDeliver ? "#2ecc71" : "#444"}; cursor: ${canDeliver ? "pointer" : "not-allowed"}; opacity: ${canDeliver ? 1 : 0.6}; color: #fff; width: 100%;">
+        ${canDeliver ? "Teslim Et" : "Yetersiz Ürün"}
+      </button>
+    `;
+    
+    if (canDeliver) {
+      const btn = orderCard.querySelector(".deliver-order-btn");
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deliverBakeryOrder(order.id);
+      });
+    }
+    
+    container.appendChild(orderCard);
+  });
+}
+
+function deliverBakeryOrder(orderId) {
+  const index = bakeryOrders.findIndex(o => o.id === orderId);
+  if (index === -1) return;
+  
+  const order = bakeryOrders[index];
+  
+  let canDeliver = true;
+  for (const [itemId, qty] of Object.entries(order.reqs)) {
+    if ((inventory ? inventory.getCount(itemId) : 0) < qty) {
+      canDeliver = false;
+      break;
+    }
+  }
+  
+  if (!canDeliver) {
+    ui.showToast("❌ Sipariş için gerekli malzemeler yeterli değil!");
+    return;
+  }
+  
+  for (const [itemId, qty] of Object.entries(order.reqs)) {
+    inventory.deduct(itemId, qty);
+  }
+  
+  ui.updateCoins(order.rewardCoins);
+  character.addXP(order.rewardXP, "deliver_bakery_order");
+  
+  ui.showToast(`🚚 Sipariş teslim edildi! +${order.rewardCoins} 🪙 +${order.rewardXP} XP`);
+  
+  if (audioSystem) {
+    audioSystem.playCoin();
+    audioSystem.playHarvest();
+  }
+  
+  const card = document.querySelector(`#bakery-order-${orderId}`);
+  if (card) {
+    card.style.transform = "scale(0.8)";
+    card.style.opacity = "0";
+    setTimeout(() => {
+      bakeryOrders.splice(index, 1);
+      saveBakeryOrders();
+      renderBakeryOrders();
+      updateWarehouseUI();
+    }, 300);
+  } else {
+    bakeryOrders.splice(index, 1);
+    saveBakeryOrders();
+    renderBakeryOrders();
+    updateWarehouseUI();
   }
 }
 
@@ -3050,3 +3562,31 @@ setInterval(() => {
     if (merchantTimerEl) merchantTimerEl.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
 }, 1000);
+
+let lastHudBadgeUpdateTime = 0;
+function getRipeCropsCount() {
+  if (!sceneManager || !sceneManager.scenes.farm || !sceneManager.scenes.farm.farm) return 0;
+  const farmInstance = sceneManager.scenes.farm.farm;
+  let ripeCount = 0;
+  for (const plot of farmInstance.plots) {
+    if (plot.cropId) {
+      const progress = farmInstance.getCropProgress(plot);
+      if (progress >= 1 && progress < 2) {
+        ripeCount++;
+      }
+    }
+  }
+  return ripeCount;
+}
+
+function updateRipeCropsBadge() {
+  const badge = document.querySelector("#ripe-crops-badge");
+  if (!badge) return;
+  const count = getRipeCropsCount();
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = "block";
+  } else {
+    badge.style.display = "none";
+  }
+}

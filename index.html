@@ -30,6 +30,10 @@
             <span aria-hidden="true">🪙</span>
             <span id="coin-count">100</span>
           </div>
+          <div class="coins gems" id="gem-container" aria-live="polite" style="min-width: 90px; height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; font-size: 18px; font-weight: 800; border: 1px solid var(--line); color: var(--text); background: rgba(142, 68, 173, 0.4); backdrop-filter: blur(14px); box-shadow: 0 8px 26px rgba(0, 0, 0, 0.22);">
+            <span aria-hidden="true">💎</span>
+            <span id="gem-count">10</span>
+          </div>
           <div class="level-badge" id="level-badge">
             <span class="level-icon">⭐</span>
             <span>Seviye <span id="level-value">1</span></span>
@@ -63,7 +67,8 @@
           <button id="open-leaderboard" class="icon-button" type="button" aria-label="Open leaderboard" title="Liderlik Tablosu">🏆</button>
           <button id="open-orders" class="icon-button" type="button" aria-label="Open orders" title="Siparişler">📋</button>
           <button id="open-market" class="icon-button" type="button" aria-label="Open market" title="Market">🛒</button>
-          <button id="open-warehouse" class="icon-button" type="button" aria-label="Open warehouse" title="Depo">📦</button>
+          <button id="go-to-farm-hud-btn" class="icon-button" type="button" aria-label="Go to farm" title="Çiftliğe Git" style="position: relative;">🌱<span id="ripe-crops-badge" style="position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; border-radius: 50%; padding: 2px 6px; font-size: 10px; font-weight: bold; border: 1.5px solid white; display: none;">0</span></button>
+
           <button id="open-decorations" class="icon-button" type="button" aria-label="Open decorations" title="Süslemeler">🧱</button>
           <button id="open-social" class="icon-button" type="button" aria-label="Open social" title="Sosyal">👥</button>
           <button id="open-settings-btn" class="icon-button" type="button" aria-label="Settings" title="Ayarlar">⚙️</button>
@@ -212,6 +217,13 @@
         <div class="market-content">
           <button id="close-market" class="close-button" type="button" aria-label="Close market">✕</button>
           <h2>Farm Market</h2>
+          <div class="market-categories" style="display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 5px;">
+            <button class="primary-button market-category-btn active" data-category="all" style="flex: 1; min-width: 60px; font-size: 11px; padding: 4px; margin: 0; background: #e67e22;" type="button">Tümü</button>
+            <button class="primary-button market-category-btn" data-category="expansion" style="flex: 1; min-width: 60px; font-size: 11px; padding: 4px; margin: 0; background: #5c3a21;" type="button">Genişleme</button>
+            <button class="primary-button market-category-btn" data-category="pet" style="flex: 1; min-width: 60px; font-size: 11px; padding: 4px; margin: 0; background: #5c3a21;" type="button">Petler</button>
+            <button class="primary-button market-category-btn" data-category="fertilizer" style="flex: 1; min-width: 60px; font-size: 11px; padding: 4px; margin: 0; background: #5c3a21;" type="button">Gübreler</button>
+            <button class="primary-button market-category-btn" data-category="material" style="flex: 1; min-width: 60px; font-size: 11px; padding: 4px; margin: 0; background: #5c3a21;" type="button">Malzemeler</button>
+          </div>
           <div class="market-items">
             <div class="market-item">
               <div class="item-info">
@@ -746,13 +758,31 @@
       <section id="gift-modal" class="market-modal" style="z-index: 1600;">
         <div class="market-content" style="width: min(340px, calc(100vw - 32px));">
           <button id="close-gift" class="close-button" type="button">✕</button>
-          <h3>Hediye Seç</h3>
-          <p style="font-size: 12px; color: rgba(255,255,255,0.7); margin-top: -8px;">Göndermek istediğiniz hediyeyi seçin:</p>
-          <div class="market-items" style="display: flex; flex-direction: column; gap: 8px;">
-            <button class="primary-button gift-option-btn" data-gift="fertilizer_basic" style="min-height: 42px; font-size: 13px; margin: 0;">🧪 Basit Gübre (1 adet)</button>
-            <button class="primary-button gift-option-btn" data-gift="fertilizer_super" style="min-height: 42px; font-size: 13px; margin: 0;">🧪 Süper Gübre (1 adet)</button>
-            <button class="primary-button gift-option-btn" data-gift="fertilizer_golden" style="min-height: 42px; font-size: 13px; margin: 0;">🧪 Altın Gübre (1 adet)</button>
-            <button class="primary-button gift-option-btn" data-gift="coins_50" style="min-height: 42px; font-size: 13px; margin: 0;">🪙 50 Altın (50 Altın ödersin)</button>
+          <h3>Hediye Gönder</h3>
+          <p style="font-size: 12px; color: rgba(255,255,255,0.7); margin-top: -8px; text-align: center;">Arkadaşına göndermek istediğin miktarı gir:</p>
+          
+          <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+            <div style="display: flex; gap: 8px; justify-content: center;">
+              <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer;">
+                <input type="radio" name="gift-currency" value="coins" checked style="accent-color: #ffd45a;"> 🪙 Altın
+              </label>
+              <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer;">
+                <input type="radio" name="gift-currency" value="gems" style="accent-color: #9b59b6;"> 💎 Elmas
+              </label>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <input type="number" id="gift-amount-input" min="1" value="10" style="width: 100%; padding: 8px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); color: white; text-align: center; font-size: 16px; font-weight: bold; outline: none; transition: border-color 0.2s;">
+              <span id="gift-balance-warning" style="color: #e74c3c; font-size: 11px; text-align: center; display: none;">Yetersiz Bakiye!</span>
+            </div>
+            
+            <button id="send-gift-btn" class="primary-button" style="min-height: 40px; font-size: 13px; margin: 0; background: linear-gradient(180deg, #ffd45a, #f1c40f); color: #000;" type="button">Hediyeyi Gönder 🎁</button>
+            
+            <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+              <h4 style="margin: 0 0 6px 0; font-size: 12px; color: #aaa;">Son Gönderimler</h4>
+              <div id="gift-history-list" style="display: flex; flex-direction: column; gap: 4px; max-height: 90px; overflow-y: auto; font-size: 11px; color: #ddd; padding-right: 4px;">
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -764,78 +794,93 @@
           <span style="font-size: 12px; color: #d2b48c;">Ekinlerini taze un ve sıcak ekmeklere dönüştür!</span>
         </header>
         
-        <!-- Aktif Fırın Durumu -->
-        <div style="background: #1a0f0a; border: 2px solid #5c3a21; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center; position: relative; overflow: hidden; box-shadow: inset 0 0 20px rgba(255,80,0,0.15);">
-          <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 30%; background: linear-gradient(0deg, rgba(255,80,0,0.3) 0%, transparent 100%); pointer-events: none;"></div>
-          <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #ffae42; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Fırın Ateşi</h3>
-          <div id="bakery-slot-status" style="font-size: 16px; font-weight: bold; color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,0.9);">Fırın Soğuk</div>
-          
-          <div id="bakery-progress-container" style="display: none; margin-top: 12px; background: rgba(0,0,0,0.6); border-radius: 8px; overflow: hidden; height: 16px; border: 2px solid #8b4513; box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);">
-            <div id="bakery-progress-bar" style="background: linear-gradient(90deg, #d35400, #f39c12); width: 0%; height: 100%; transition: width 0.1s linear; box-shadow: 0 0 10px #e67e22;"></div>
-          </div>
-          
-          <button id="bakery-collect-btn" class="primary-button" style="display: none; margin-top: 15px; width: 100%; background: linear-gradient(180deg, #2ecc71, #27ae60); border: 2px solid #2ecc71; border-radius: 8px; color: white; font-weight: bold; padding: 10px; font-size: 14px; box-shadow: 0 4px 10px rgba(46,204,113,0.4); cursor: pointer;" type="button">Fırından Çıkar 🧺</button>
+        <div class="bakery-tabs" style="display: flex; gap: 8px; margin-bottom: 15px;">
+          <button class="primary-button bakery-tab-btn active" data-tab="recipes" style="flex: 1; padding: 6px; font-size: 13px; margin: 0; background: #e67e22;" type="button">Pişirme</button>
+          <button class="primary-button bakery-tab-btn" data-tab="orders" style="flex: 1; padding: 6px; font-size: 13px; margin: 0; background: #5c3a21;" type="button">Siparişler</button>
         </div>
 
-        <!-- Reçeteler Listesi -->
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <h3 style="margin: 0 0 4px 0; font-size: 14px; color: #eebb99; border-bottom: 1px solid rgba(238,187,153,0.3); padding-bottom: 4px;">Pişirme Reçeteleri</h3>
-          
-          <!-- Un Reçetesi -->
-          <div class="recipe-item" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid #5c3a21; border-radius: 8px; padding: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
-            <div style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">📦</div>
-            <div style="flex-grow: 1;">
-              <div style="font-size: 14px; font-weight: bold; color: #fff;">Paketli Un</div>
-              <div class="recipe-reqs" data-recipe="flour" style="font-size: 11px; color: #d2b48c; margin-top: 2px;">Gereken: Yükleniyor...</div>
-              <div style="font-size: 11px; color: #ff9d00; margin-top: 2px; font-weight: bold;">Süre: 15s</div>
+        <div id="bakery-recipes-tab" class="bakery-tab-content">
+          <!-- Aktif Fırın Durumu -->
+          <div style="background: #1a0f0a; border: 2px solid #5c3a21; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center; position: relative; overflow: hidden; box-shadow: inset 0 0 20px rgba(255,80,0,0.15);">
+            <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 30%; background: linear-gradient(0deg, rgba(255,80,0,0.3) 0%, transparent 100%); pointer-events: none;"></div>
+            <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #ffae42; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Fırın Ateşi</h3>
+            <div id="bakery-slot-status" style="font-size: 16px; font-weight: bold; color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,0.9);">Fırın Soğuk</div>
+            
+            <div id="bakery-progress-container" style="display: none; margin-top: 12px; background: rgba(0,0,0,0.6); border-radius: 8px; overflow: hidden; height: 16px; border: 2px solid #8b4513; box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);">
+              <div id="bakery-progress-bar" style="background: linear-gradient(90deg, #d35400, #f39c12); width: 0%; height: 100%; transition: width 0.1s linear; box-shadow: 0 0 10px #e67e22;"></div>
             </div>
-            <button class="primary-button bakery-bake-btn" data-recipe="flour" style="margin: 0; width: auto; padding: 6px 14px; min-height: 32px; font-size: 12px; background: linear-gradient(180deg, #e67e22, #d35400); border: 1px solid #e67e22; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(230,126,34,0.4);" type="button">Pişir</button>
+            
+            <button id="bakery-collect-btn" class="primary-button" style="display: none; margin-top: 15px; width: 100%; background: linear-gradient(180deg, #2ecc71, #27ae60); border: 2px solid #2ecc71; border-radius: 8px; color: white; font-weight: bold; padding: 10px; font-size: 14px; box-shadow: 0 4px 10px rgba(46,204,113,0.4); cursor: pointer;" type="button">Fırından Çıkar 🧺</button>
           </div>
 
-          <!-- Ekmek Reçetesi -->
-          <div class="recipe-item" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid #5c3a21; border-radius: 8px; padding: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
-            <div style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🍞</div>
-            <div style="flex-grow: 1;">
-              <div style="font-size: 14px; font-weight: bold; color: #fff;">Taze Ekmek</div>
-              <div class="recipe-reqs" data-recipe="bread" style="font-size: 11px; color: #d2b48c; margin-top: 2px;">Gereken: Yükleniyor...</div>
-              <div style="font-size: 11px; color: #ff9d00; margin-top: 2px; font-weight: bold;">Süre: 30s</div>
+          <!-- Reçeteler Listesi -->
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <h3 style="margin: 0 0 4px 0; font-size: 14px; color: #eebb99; border-bottom: 1px solid rgba(238,187,153,0.3); padding-bottom: 4px;">Pişirme Reçeteleri</h3>
+            
+            <!-- Un Reçetesi -->
+            <div class="recipe-item" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid #5c3a21; border-radius: 8px; padding: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+              <div style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">📦</div>
+              <div style="flex-grow: 1;">
+                <div style="font-size: 14px; font-weight: bold; color: #fff;">Paketli Un</div>
+                <div class="recipe-reqs" data-recipe="flour" style="font-size: 11px; color: #d2b48c; margin-top: 2px;">Gereken: Yükleniyor...</div>
+                <div style="font-size: 11px; color: #ff9d00; margin-top: 2px; font-weight: bold;">Süre: 15s</div>
+              </div>
+              <button class="primary-button bakery-bake-btn" data-recipe="flour" style="margin: 0; width: auto; padding: 6px 14px; min-height: 32px; font-size: 12px; background: linear-gradient(180deg, #e67e22, #d35400); border: 1px solid #e67e22; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(230,126,34,0.4);" type="button">Pişir</button>
             </div>
-            <button class="primary-button bakery-bake-btn" data-recipe="bread" style="margin: 0; width: auto; padding: 6px 14px; min-height: 32px; font-size: 12px; background: linear-gradient(180deg, #e67e22, #d35400); border: 1px solid #e67e22; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(230,126,34,0.4);" type="button">Pişir</button>
-          </div>
 
-          <!-- Çilekli Kek Reçetesi -->
-          <div class="recipe-item" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid #5c3a21; border-radius: 8px; padding: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
-            <div style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🍰</div>
-            <div style="flex-grow: 1;">
-              <div style="font-size: 14px; font-weight: bold; color: #fff;">Çilekli Kek</div>
-              <div class="recipe-reqs" data-recipe="strawberry_cake" style="font-size: 11px; color: #d2b48c; margin-top: 2px;">Gereken: Yükleniyor...</div>
-              <div style="font-size: 11px; color: #ff9d00; margin-top: 2px; font-weight: bold;">Süre: 60s</div>
+            <!-- Ekmek Reçetesi -->
+            <div class="recipe-item" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid #5c3a21; border-radius: 8px; padding: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+              <div style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🍞</div>
+              <div style="flex-grow: 1;">
+                <div style="font-size: 14px; font-weight: bold; color: #fff;">Taze Ekmek</div>
+                <div class="recipe-reqs" data-recipe="bread" style="font-size: 11px; color: #d2b48c; margin-top: 2px;">Gereken: Yükleniyor...</div>
+                <div style="font-size: 11px; color: #ff9d00; margin-top: 2px; font-weight: bold;">Süre: 30s</div>
+              </div>
+              <button class="primary-button bakery-bake-btn" data-recipe="bread" style="margin: 0; width: auto; padding: 6px 14px; min-height: 32px; font-size: 12px; background: linear-gradient(180deg, #e67e22, #d35400); border: 1px solid #e67e22; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(230,126,34,0.4);" type="button">Pişir</button>
             </div>
-            <button class="primary-button bakery-bake-btn" data-recipe="strawberry_cake" style="margin: 0; width: auto; padding: 6px 14px; min-height: 32px; font-size: 12px; background: linear-gradient(180deg, #e67e22, #d35400); border: 1px solid #e67e22; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(230,126,34,0.4);" type="button">Pişir</button>
-          </div>
 
-          <!-- Yaban Mersini Turtası Reçetesi -->
-          <div class="recipe-item" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid #5c3a21; border-radius: 8px; padding: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
-            <div style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🥧</div>
-            <div style="flex-grow: 1;">
-              <div style="font-size: 14px; font-weight: bold; color: #fff;">Mavi Yemiş Turtası</div>
-              <div class="recipe-reqs" data-recipe="blueberry_pie" style="font-size: 11px; color: #d2b48c; margin-top: 2px;">Gereken: Yükleniyor...</div>
-              <div style="font-size: 11px; color: #ff9d00; margin-top: 2px; font-weight: bold;">Süre: 90s</div>
+            <!-- Çilekli Kek Reçetesi -->
+            <div class="recipe-item" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid #5c3a21; border-radius: 8px; padding: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+              <div style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🍰</div>
+              <div style="flex-grow: 1;">
+                <div style="font-size: 14px; font-weight: bold; color: #fff;">Çilekli Kek</div>
+                <div class="recipe-reqs" data-recipe="strawberry_cake" style="font-size: 11px; color: #d2b48c; margin-top: 2px;">Gereken: Yükleniyor...</div>
+                <div style="font-size: 11px; color: #ff9d00; margin-top: 2px; font-weight: bold;">Süre: 60s</div>
+              </div>
+              <button class="primary-button bakery-bake-btn" data-recipe="strawberry_cake" style="margin: 0; width: auto; padding: 6px 14px; min-height: 32px; font-size: 12px; background: linear-gradient(180deg, #e67e22, #d35400); border: 1px solid #e67e22; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(230,126,34,0.4);" type="button">Pişir</button>
             </div>
-            <button class="primary-button bakery-bake-btn" data-recipe="blueberry_pie" style="margin: 0; width: auto; padding: 6px 14px; min-height: 32px; font-size: 12px; background: linear-gradient(180deg, #e67e22, #d35400); border: 1px solid #e67e22; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(230,126,34,0.4);" type="button">Pişir</button>
-          </div>
 
-          <!-- Havuçlu Kek Reçetesi -->
-          <div class="recipe-item" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid #5c3a21; border-radius: 8px; padding: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
-            <div style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🧁</div>
-            <div style="flex-grow: 1;">
-              <div style="font-size: 14px; font-weight: bold; color: #fff;">Havuçlu Kek</div>
-              <div class="recipe-reqs" data-recipe="carrot_cake" style="font-size: 11px; color: #d2b48c; margin-top: 2px;">Gereken: Yükleniyor...</div>
-              <div style="font-size: 11px; color: #ff9d00; margin-top: 2px; font-weight: bold;">Süre: 45s</div>
+            <!-- Yaban Mersini Turtası Reçetesi -->
+            <div class="recipe-item" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid #5c3a21; border-radius: 8px; padding: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+              <div style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🥧</div>
+              <div style="flex-grow: 1;">
+                <div style="font-size: 14px; font-weight: bold; color: #fff;">Mavi Yemiş Turtası</div>
+                <div class="recipe-reqs" data-recipe="blueberry_pie" style="font-size: 11px; color: #d2b48c; margin-top: 2px;">Gereken: Yükleniyor...</div>
+                <div style="font-size: 11px; color: #ff9d00; margin-top: 2px; font-weight: bold;">Süre: 90s</div>
+              </div>
+              <button class="primary-button bakery-bake-btn" data-recipe="blueberry_pie" style="margin: 0; width: auto; padding: 6px 14px; min-height: 32px; font-size: 12px; background: linear-gradient(180deg, #e67e22, #d35400); border: 1px solid #e67e22; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(230,126,34,0.4);" type="button">Pişir</button>
             </div>
-            <button class="primary-button bakery-bake-btn" data-recipe="carrot_cake" style="margin: 0; width: auto; padding: 6px 14px; min-height: 32px; font-size: 12px; background: linear-gradient(180deg, #e67e22, #d35400); border: 1px solid #e67e22; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(230,126,34,0.4);" type="button">Pişir</button>
-          </div>
 
+            <!-- Havuçlu Kek Reçetesi -->
+            <div class="recipe-item" style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid #5c3a21; border-radius: 8px; padding: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+              <div style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🧁</div>
+              <div style="flex-grow: 1;">
+                <div style="font-size: 14px; font-weight: bold; color: #fff;">Havuçlu Kek</div>
+                <div class="recipe-reqs" data-recipe="carrot_cake" style="font-size: 11px; color: #d2b48c; margin-top: 2px;">Gereken: Yükleniyor...</div>
+                <div style="font-size: 11px; color: #ff9d00; margin-top: 2px; font-weight: bold;">Süre: 45s</div>
+              </div>
+              <button class="primary-button bakery-bake-btn" data-recipe="carrot_cake" style="margin: 0; width: auto; padding: 6px 14px; min-height: 32px; font-size: 12px; background: linear-gradient(180deg, #e67e22, #d35400); border: 1px solid #e67e22; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(230,126,34,0.4);" type="button">Pişir</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="bakery-orders-tab" class="bakery-tab-content" style="display: none;">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <h3 style="margin: 0 0 4px 0; font-size: 14px; color: #eebb99; border-bottom: 1px solid rgba(238,187,153,0.3); padding-bottom: 4px;">Fırın Siparişleri</h3>
+            <div id="bakery-orders-list" style="display: flex; flex-direction: column; gap: 10px;">
+              <!-- JS tarafından dinamik doldurulacak -->
+            </div>
+          </div>
         </div>
       </section>
 
