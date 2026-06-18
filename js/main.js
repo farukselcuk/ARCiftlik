@@ -4,6 +4,7 @@ import { SceneManager } from "./scene-manager.js";
 import { DailyLogin } from "./daily-login.js";
 import { WeatherSystem } from "./weather.js";
 import { SeasonSystem } from "./seasons.js";
+import { DayNightCycle } from "./daynight.js";
 import { GameUI } from "./ui.js";
 import { Inventory } from "./inventory.js";
 import { Orders } from "./orders.js";
@@ -47,6 +48,7 @@ let sceneManager = null;
 let character = null;
 let audioSystem = null;
 let socialSystem = null;
+let dayNightCycle = null;
 
 // Göç / Bildirim kontrolü
 let _migrationNotice = null;
@@ -109,7 +111,10 @@ async function initGame(user, nickname) {
 
   window.seasonSystem = seasonSystem;
   window.weatherSystem = weatherSystem;
-  window.cycleStartTime = Date.now();
+
+  // Gündüz/Gece döngüsü
+  dayNightCycle = new DayNightCycle();
+  window.dayNightCycle = dayNightCycle;
 
   // Sound settings initialization
   const toggleSoundBtn = document.querySelector("#toggle-sound-btn");
@@ -185,6 +190,11 @@ async function initGame(user, nickname) {
     updateSeasonUI();
   };
   
+  dayNightCycle.onPhaseChange = (oldPhase, newPhase, info) => {
+    if (ui) ui.showToast(`${info.icon} ${info.name} vakti!`);
+    updateTimeUI();
+  };
+  
   sceneManager.scenes.farm.chestSystem.onChestOpened = (loot) => {
     if (loot.type === "gold") {
       ui.updateCoins(loot.amount);
@@ -206,6 +216,18 @@ async function initGame(user, nickname) {
   populateSeedPicker();
   updateWeatherUI();
   updateSeasonUI();
+  updateTimeUI();
+  
+  // Periyodik UI güncellemeleri (saat ve sıcaklık - dakikada bir senkron)
+  const msUntilNextMinute = 60000 - (Date.now() % 60000);
+  setTimeout(() => {
+    updateTimeUI();
+    updateWeatherUI();
+    setInterval(() => {
+      updateTimeUI();
+      updateWeatherUI();
+    }, 60000);
+  }, msUntilNextMinute);
   
   // Giriş ekranı verilerini güncelle
   document.querySelector("#user-display-name").textContent = nickname;
@@ -666,17 +688,53 @@ function checkDailyLogin() {
 // Hava Durumu ve Mevsim UI Güncellemeleri (initGame içinde bağlanıyor)
 
 function updateWeatherUI() {
-  if (!weatherSystem) return;
-  const weather = weatherSystem.getCurrentWeather();
-  document.querySelector("#weather-badge").textContent = `${weather.icon}`;
-  document.querySelector("#weather-badge").title = `Hava Durumu: ${weather.name}`;
+  if (!weatherSystem || !seasonSystem) return;
+  const seasonId = seasonSystem.current;
+  const detail = weatherSystem.getDetailedWeather(seasonId);
+  
+  const iconEl = document.querySelector("#weather-icon");
+  const tempEl = document.querySelector("#weather-temp");
+  const nameEl = document.querySelector("#weather-name");
+  
+  if (iconEl) iconEl.textContent = detail.icon;
+  if (tempEl) tempEl.textContent = detail.tempFormatted;
+  if (nameEl) nameEl.textContent = detail.name;
+  
+  // Widget'e title tooltip
+  const widget = document.querySelector("#weather-widget");
+  if (widget) widget.title = `${detail.name} — ${detail.tempFormatted}`;
 }
 
 function updateSeasonUI() {
   if (!seasonSystem) return;
-  const season = seasonSystem.getCurrentSeason();
-  document.querySelector("#season-badge").textContent = `${season.icon}`;
-  document.querySelector("#season-badge").title = `Mevsim: ${season.name}`;
+  const info = seasonSystem.getSeasonWithMonth();
+  
+  const iconEl = document.querySelector("#season-icon");
+  const nameEl = document.querySelector("#season-name");
+  const monthEl = document.querySelector("#season-month");
+  
+  if (iconEl) iconEl.textContent = info.season.icon;
+  if (nameEl) nameEl.textContent = info.season.name;
+  if (monthEl) monthEl.textContent = `${info.day} ${info.monthName}`;
+  
+  // Widget'e title tooltip
+  const widget = document.querySelector("#season-widget");
+  if (widget) widget.title = `${info.season.icon} ${info.season.name} — ${info.day} ${info.monthName}`;
+}
+
+function updateTimeUI() {
+  if (!dayNightCycle) return;
+  const phase = dayNightCycle.getPhase();
+  const time = dayNightCycle.getFormattedTime();
+  
+  const phaseIconEl = document.querySelector("#time-phase-icon");
+  const timeDisplayEl = document.querySelector("#time-display");
+  
+  if (phaseIconEl) phaseIconEl.textContent = phase.icon;
+  if (timeDisplayEl) timeDisplayEl.textContent = time;
+  
+  const widget = document.querySelector("#time-widget");
+  if (widget) widget.title = `${phase.name} — ${time}`;
 }
 
 // Sandık açılma ödülleri (initGame içinde bağlanıyor)

@@ -205,4 +205,64 @@ export class WeatherSystem {
   static get TYPES() {
     return WEATHER_TYPES;
   }
+
+  /**
+   * Mevsime ve hava durumuna göre sıcaklık tahmini hesapla.
+   * @param {string} seasonId — Mevcut mevsim ID'si
+   * @returns {number} Sıcaklık (°C)
+   */
+  getTemperature(seasonId) {
+    // Mevsim bazlı baz sıcaklıklar
+    const BASE_TEMPS = {
+      spring: { min: 12, max: 22 },
+      summer: { min: 24, max: 38 },
+      autumn: { min: 8,  max: 18 },
+      winter: { min: -5, max: 8 }
+    };
+
+    // Hava durumu sıcaklık modifiye
+    const WEATHER_MODS = {
+      sunny: 3,
+      cloudy: -1,
+      rainy: -3,
+      storm: -5
+    };
+
+    const seasonRange = BASE_TEMPS[seasonId] || BASE_TEMPS.spring;
+    const weatherMod = WEATHER_MODS[this.current] || 0;
+
+    // Saat bazlı sıcaklık dalgalanması (gece soğur, öğlen sıcak)
+    const hour = new Date().getHours();
+    let hourFactor;
+    if (hour >= 6 && hour < 14) {
+      hourFactor = (hour - 6) / 8; // 0 → 1 (artan)
+    } else if (hour >= 14 && hour < 22) {
+      hourFactor = 1 - (hour - 14) / 8; // 1 → 0 (azalan)
+    } else {
+      hourFactor = 0; // Gece en düşük
+    }
+
+    // Deterministik rastgelelik (saate bağlı, her çağrıda aynı)
+    const pseudoRandom = Math.sin(hour * 7 + new Date().getDate() * 13) * 0.5 + 0.5;
+    const noise = (pseudoRandom - 0.5) * 3;
+
+    const baseTemp = seasonRange.min + (seasonRange.max - seasonRange.min) * hourFactor;
+    return Math.round(baseTemp + weatherMod + noise);
+  }
+
+  /**
+   * Detaylı hava durumu bilgisi (widget için).
+   * @param {string} seasonId
+   * @returns {{ id: string, name: string, icon: string, temperature: number, tempFormatted: string }}
+   */
+  getDetailedWeather(seasonId) {
+    const weather = this.getCurrentWeather();
+    const temp = this.getTemperature(seasonId || "spring");
+    return {
+      ...weather,
+      temperature: temp,
+      tempFormatted: `${temp}°C`
+    };
+  }
 }
+

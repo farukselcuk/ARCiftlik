@@ -115,41 +115,29 @@ export async function loadOrCreateProfile(user) {
 }
 
 /**
- * Initializes Firebase Auth state changes, handling redirect result first
+ * Initializes Firebase Auth state changes
  * @param {function} onAuthChanged - Callback invoked on auth state change
  */
 export function initFirebase(onAuthChanged) {
-  // Check redirect result first (page load after redirect sign in)
-  getRedirectResult(auth)
-    .then(async (result) => {
-      if (result?.user) {
-        console.log("[FirebaseService] Redirect login success:", result.user.email);
-        try {
-          await loadOrCreateProfile(result.user);
-        } catch (e) {
-          console.error("[FirebaseService] Error loading/creating profile after redirect:", e);
-        }
+  // Sadece redirect hatalarını loglamak için
+  getRedirectResult(auth).catch((err) => {
+    console.error("[FirebaseService] Redirect result error:", err);
+  });
+
+  // Standart auth dinleyicisini doğrudan başlat (race condition önler)
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      try {
+        const nickname = await loadOrCreateProfile(user);
+        onAuthChanged(user, nickname);
+      } catch (err) {
+        console.error("[FirebaseService] Error loading user profile on auth change:", err);
+        onAuthChanged(user, "Çiftçi");
       }
-    })
-    .catch((err) => {
-      console.error("[FirebaseService] Redirect result error:", err);
-    })
-    .finally(() => {
-      // Set up standard auth state listener
-      onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          try {
-            const nickname = await loadOrCreateProfile(user);
-            onAuthChanged(user, nickname);
-          } catch (err) {
-            console.error("[FirebaseService] Error loading user profile on auth change:", err);
-            onAuthChanged(user, "Çiftçi");
-          }
-        } else {
-          onAuthChanged(null, null);
-        }
-      });
-    });
+    } else {
+      onAuthChanged(null, null);
+    }
+  });
 }
 
 /**
@@ -262,61 +250,70 @@ let syncTimeout = null;
  * Starts synchronization listener for window.gameInMemoryCache state changes
  */
 export function initSyncListener() {
-  window.addEventListener("game-state-changed", () => {
+  const syncNow = async () => {
     const user = auth.currentUser;
     if (!user) return; // Sync only if user is logged in
     
-    if (syncTimeout) clearTimeout(syncTimeout);
-    
-    syncTimeout = setTimeout(async () => {
-      try {
-        const docRef = doc(db, "saves", user.uid);
-        
-        // Pick all arciftlik state keys from memory cache
-        const dataToSave = {};
-        let hasData = false;
-        
-        for (const key in window.gameInMemoryCache) {
-          if (key.startsWith("arciftlik:")) {
-            dataToSave[key] = window.gameInMemoryCache[key];
-            hasData = true;
-          }
+    try {
+      const docRef = doc(db, "saves", user.uid);
+      
+      // Pick all arciftlik state keys from memory cache
+      const dataToSave = {};
+      let hasData = false;
+      
+      for (const key in window.gameInMemoryCache) {
+        if (key.startsWith("arciftlik:")) {
+          dataToSave[key] = window.gameInMemoryCache[key];
+          hasData = true;
         }
-        
-        if (!hasData) return;
-        
-        dataToSave.updatedAt = new Date();
-        
-        // Save to Firestore
-        await setDoc(docRef, dataToSave, { merge: true });
-        console.log("[FirebaseSync] Saved game state to Firestore successfully.");
-        
-        // Update Leaderboard score (based on coins and level)
-        const globalStateRaw = window.gameInMemoryCache["arciftlik:global:state"];
-        if (globalStateRaw) {
-          const globalState = JSON.parse(globalStateRaw);
-          const coins = globalState.coins ?? 100;
-          const level = globalState.level ?? 1;
-          
-          // Primary score is current coins
-          const score = coins;
-          
-          const userDoc = await getDoc(doc(db, "users", user.uid));
-          const nickname = userDoc.exists() ? userDoc.data().nickname : "Çiftçi";
-          
-          await setDoc(doc(db, "leaderboard", user.uid), {
-            userId: user.uid,
-            nickname: nickname,
-            score: score,
-            level: level,
-            coins: coins,
-            updatedAt: new Date()
-          });
-        }
-      } catch (err) {
-        console.error("[FirebaseSync] Error syncing game state to Firestore:", err);
       }
-    }, 2000); // 2-second debounce
+      
+      if (!hasData) return;
+      
+      dataToSave.updatedAt = new Date();
+      
+      // Save to Firestore
+      await setDoc(docRef, dataToSave, { merge: true });
+      console.log("[FirebaseSync] Saved game state to Firestore successfully.");
+      
+      // Update Leaderboard score (based on coins and level)
+      const globalStateRaw = window.gameInMemoryCache["arciftlik:global:state"];
+      if (globalStateRaw) {
+        const globalState = JSON.parse(globalStateRaw);
+        const coins = globalState.coins ?? 100;
+        const level = globalState.level ?? 1;
+        
+        // Primary score is current coins
+        const score = coins;
+        
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const nickname = userDoc.exists() ? userDoc.data().nickname : "Çiftçi";
+        
+        await setDoc(doc(db, "leaderboard", user.uid), {
+          userId: user.uid,
+          nickname: nickname,
+          score: score,
+          level: level,
+          coins: coins,
+          updatedAt: new Date()
+        });
+      }
+    } catch (err) {
+      console.error("[FirebaseSync] Error syncing game state to Firestore:", err);
+    }
+  };
+
+  window.addEventListener("game-state-changed", () => {
+    if (syncTimeout) clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(syncNow, 2000); // 2-second debounce
+  });
+
+  // Sayfa kapanmadan önce bekleyen verileri senkronize et
+  window.addEventListener("beforeunload", () => {
+    if (syncTimeout) {
+      clearTimeout(syncTimeout);
+      syncNow();
+    }
   });
 }
 

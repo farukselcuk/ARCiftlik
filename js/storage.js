@@ -276,12 +276,26 @@ export class GameStorage {
 
   _mergeWithDefaults(state) {
     const defaults = this._deepClone(this.defaultState);
-    for (const key of Object.keys(defaults)) {
-      if (state[key] === undefined) {
-        state[key] = defaults[key];
+    return this._deepMergeObjects(defaults, state);
+  }
+
+  _deepMergeObjects(target, source) {
+    if (!source) return target;
+    const output = { ...target };
+    
+    Object.keys(source).forEach(key => {
+      if (this._isObject(source[key]) && this._isObject(target[key])) {
+        output[key] = this._deepMergeObjects(target[key], source[key]);
+      } else {
+        output[key] = source[key];
       }
-    }
-    return state;
+    });
+    
+    return output;
+  }
+
+  _isObject(item) {
+    return (item && typeof item === 'object' && !Array.isArray(item));
   }
 
   _deepClone(obj) {

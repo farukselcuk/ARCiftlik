@@ -1,0 +1,604 @@
+ *
+ŁǟBƁJJA0B!
+	sessionID-3750763034362895579PZx8Azat3OOciJxN8P9LfHgQEb$1bf411bb-5fca-4a3d-92ab-69a2ac20d2c3P
+$96ae2475-55b3-4768-a850-98b4b5bd2f95"$e4b7b165-20ef-4c6d-83f2-8c1091087d456
+Łǟ
+Ł
+ƁLJA0B!
+	sessionID-3750763034362895579PZx8Azat3OOciJxN8P9LfHgQEŁǟǚ"Implementing Seasonal Farming Mechanics
+
+The user aims to enhance the "ARÇiftlik" game by integrating a dynamic seasonal and day-night cycle system. Key objectives include:
+1. Conducting a comprehensive code audit to identify and document existing bugs and performance issues.
+2. Implementing a real-time Day/Night cycle using Three.js with corresponding sky transitions and lighting changes.
+3. Adding interactive UI widgets for weather and seasonal information, including dynamic seed-planting restrictions based on seasons.
+4. Integrating visual seasonal effects, such as atmospheric changes and a leaf animation system.
+5. Updating the game engine and core logic files to support these new features while ensuring performance is maintained.H`zfile:///C:/Users/omerf/.gemini/antigravity-ide/brain/e4b7b165-20ef-4c6d-83f2-8c1091087d45/.system_generated/logs/transcript.jsonlΓ# ARÇiftlik — Mevsim/Gündüz-Gece/Hava Promptu (Opus 4.6)
+
+Bu prompt iki iş yapacak:
+1. Aşağıdaki özellikleri ekle
+2. Mevcut kodu inceleyip kendi bulduğun hata ve eksiklikleri listele
+
+---
+
+## 🔍 ÖNCE KODU İNCELE — HATALARI LİSTELE
+
+Sana vereceğim tüm .js dosyalarını okuduktan sonra cevabının başına şu formatla bir bölüm ekle:
+
+```
+## 🔴 Tespit Ettiğim Hatalar ve Eksiklikler
+
+### Kritik Hatalar (oyunu kıranlar):
+1. [dosya adı] — [sorun] — [önerilen düzeltme]
+
+### Orta Öncelikli Sorunlar:
+1. [dosya adı] — [sorun] — [önerilen düzeltme]
+
+### Küçük Eksiklikler / İyileştirmeler:
+1. [dosya adı] — [sorun] — [öneriden düzeltme]
+
+### Güvenlik / Firebase Sorunları:
+1. [dosya adı] — [sorun] — [önerilen düzeltme]
+```
+
+Listeyi tamamladıktan sonra aşağıdaki özellikleri ekle.
+
+---
+
+## 🌍 ÖZELLİK 1: MEVSİM & AYIN GÖSTERGESİ
+
+### Ekranda Mevsim + Ay Bilgisi
+
+Tarla ekranının **sol üst köşesine** sabit bir bilgi kartı ekle.
+Hem mevsimi hem hangi ayda olduğunu açıkça göstersin:
+
+```javascript
+// ui.js — mevsim/ay kartı
+function renderSeasonWidget() {
+  const now = new Date();
+  const monthNames = [
+    'Ocak','Şubat','Mart','Nisan','Mayıs','Haziran',
+    'Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'
+  ];
+  const seasonData = {
+    spring: { label: 'İlkbahar', icon: '🌸', color: '#a8e6cf', months: [2,3,4] },
+    summer: { label: 'Yaz',      icon: '☀️', color: '#ffd93d', months: [5,6,7] },
+    autumn: { label: 'Sonbahar', icon: '🍂', color: '#ff8b42', months: [8,9,10] },
+    winter: { label: 'Kış',      icon: '❄️', color: '#a8d8ea', months: [11,0,1] }
+  };
+
+  const season = Weather.getSeason();
+  const s = seasonData[season];
+  const monthIndex = now.getMonth();
+
+  // Hangi tohumlar bu mevsimde ekilebilir?
+  const availableNow = Object.values(CROP_TYPES).filter(crop =>
+    crop.seasons.includes('all') || crop.seasons.includes(season)
+  );
+  const lockedNow = Object.values(CROP_TYPES).filter(crop =>
+    !crop.seasons.includes('all') && !crop.seasons.includes(season)
+  );
+
+  document.getElementById('season-widget').innerHTML = `
+    <div class="season-card" style="border-color: ${s.color}">
+      <span class="season-icon">${s.icon}</span>
+      <div class="season-info">
+        <span class="season-name">${s.label}</span>
+        <span class="season-month">${monthNames[monthIndex]}</span>
+      </div>
+      <div class="season-crops">
+        <span title="Bu mevsimde ekilebilir">✅ ${availableNow.length} ürün</span>
+        ${lockedNow.length > 0 ? `<span title="Mevsim dışı" style="opacity:0.5">🚫 ${lockedNow.length}</span>` : ''}
+      </div>
+    </div>
+  `;
+}
+```
+
+```css
+/* style.css */
+.season-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0,0,0,0.45);
+  border: 1.5px solid;
+  border-radius: 12px;
+  padding: 6px 10px;
+  backdrop-filter: blur(8px);
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+}
+.season-icon   { font-size: 20px; }
+.season-name   { color: #fff; font-size: 12px; font-weight: 600; display: block; }
+.season-month  { color: rgba(255,255,255,0.6); font-size: 10px; display: block; }
+.season-crops  { display: flex; flex-direction: column; gap: 2px; font-size: 9px; color: rgba(255,255,255,0.7); }
+```
+
+---
+
+## 🌱 ÖZELLİK 2: MEVSİM EKİM KISITLAMASI — BELİRSİZLİK GİDERME
+
+### Sorun:
+Şu an mevsim kısıtlaması var ama oyuncu hangi ürünün neden ekemediğini bilmiyor.
+
+### Düzeltme — `ui.js` tohum seçim popup'ı:
+
+```javascript
+function renderSeedPickerWithSeasonInfo(playerLevel) {
+  const season = Weather.getSeason();
+  const seasonLabels = {
+    spring:'İlkbahar', summer:'Yaz', autumn:'Sonbahar', winter:'Kış'
+  };
+
+  return Object.values(CROP_TYPES).map(crop => {
+    const levelOk   = playerLevel >= crop.unlockedAt;
+    const seasonOk  = crop.seasons.includes('all') || crop.seasons.includes(season);
+    const canPlant  = levelOk && seasonOk;
+
+    let lockReason = '';
+    if (!levelOk)  lockReason = `🔒 Seviye ${crop.unlockedAt} gerekli`;
+    if (!seasonOk) {
+      const availableIn = crop.seasons
+        .map(s => seasonLabels[s])
+        .join(', ');
+      lockReason = `🚫 Sadece ${availableIn}'da ekilir`;
+    }
+
+    return {
+      ...crop,
+      canPlant,
+      lockReason,
+      // Mevsim dışıysa soluk göster, tamamen gizleme
+      opacity: canPlant ? 1 : 0.4
+    };
+  });
+}
+
+// Tohum seçim popup HTML:
+// Kilitli tohumların üzerinde sebep tooltip'i çıksın
+// "🚫 Sadece Yaz'da ekilir" gibi
+// Tıklanınca da toast mesajı: "Bu tohum Yaz mevsiminde ekilebilir!"
+```
+
+### CROP_TYPES'a mevsim alanlarını ekle (`crops.js`):
+
+```javascript
+export const CROP_TYPES = {
+  wheat:      { ..., unlockedAt: 1, seasons: ['all'] },
+  corn:       { ..., unlockedAt: 1, seasons: ['all'] },
+  carrot:     { ..., unlockedAt: 1, seasons: ['spring', 'autumn'] },
+  strawberry: { ..., unlockedAt: 3, seasons: ['spring', 'summer'] },
+  sunflower:  { ..., unlockedAt: 5, seasons: ['summer'] },
+  potato:     { ..., unlockedAt: 4, seasons: ['all'] },
+  tomato:     { ..., unlockedAt: 6, seasons: ['summer'] },
+  pumpkin:    { ..., unlockedAt: 7, seasons: ['autumn'] },
+  blueberry:  { ..., unlockedAt: 9, seasons: ['summer'] },
+};
+```
+
+---
+
+## ☀️🌙 ÖZELLİK 3: GÜNEŞ & AY — GECE/GÜNDÜZ DÖNGÜSÜ
+
+### `js/daynight.js` — yeni dosya:
+
+Gerçek saate göre gündüz/gece döngüsü. Güneş ve Ay Three.js sahnesinde hareket eder.
+
+```javascript
+import * as THREE from 'three';
+
+export class DayNightCycle {
+  constructor(scene, renderer) {
+    this.scene = scene;
+    this.renderer = renderer;
+
+    // ── GÜNEŞ ──
+    this.sun = this.createSun();
+    scene.add(this.sun);
+
+    // ── AY ──
+    this.moon = this.createMoon();
+    scene.add(this.moon);
+
+    // ── YILDIZLAR ──
+    this.stars = this.createStars();
+    scene.add(this.stars);
+
+    // ── IŞIK KAYNAKLARI ──
+    this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    this.sunLight.castShadow = true;
+    scene.add(this.sunLight);
+
+    this.moonLight = new THREE.DirectionalLight(0x4466aa, 0.2);
+    scene.add(this.moonLight);
+
+    this.ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+    scene.add(this.ambientLight);
+  }
+
+  createSun() {
+    const group = new THREE.Group();
+
+    // Güneş küresi
+    const sun = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xFFDD44 })
+    );
+    group.add(sun);
+
+    // Güneş ışınları (hale)
+    for (let i = 0; i < 8; i++) {
+      const ray = new THREE.Mesh(
+        new THREE.BoxGeometry(0.04, 0.22, 0.01),
+        new THREE.MeshBasicMaterial({
+          color: 0xFFEE66, transparent: true, opacity: 0.4
+        })
+      );
+      ray.rotation.z = (i / 8) * Math.PI * 2;
+      ray.position.z = -0.01;
+      group.add(ray);
+    }
+
+    return group;
+  }
+
+  createMoon() {
+    const moon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 14, 10),
+      new THREE.MeshStandardMaterial({
+        color: 0xDDDDCC,
+        roughness: 0.9,
+        emissive: 0x888877,
+        emissiveIntensity: 0.15
+      })
+    );
+    // Ay kraterleri — küçük çukurlar
+    moon.userData.isMoon = true;
+    return moon;
+  }
+
+  createStars() {
+    const count = 200;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi   = Math.random() * Math.PI;
+      const r     = 8 + Math.random() * 2;
+      positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = Math.abs(r * Math.cos(phi)); // Sadece üstte
+      positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    return new THREE.Points(
+      geometry,
+      new THREE.PointsMaterial({ color: 0xffffff, size: 0.02, transparent: true, opacity: 0 })
+    );
+  }
+
+  // Gerçek saate göre döngü — 0.0 (gece yarısı) → 0.5 (öğlen) → 1.0 (gece yarısı)
+  getDayProgress() {
+    const now = new Date();
+    return (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400;
+  }
+
+  // Her frame çağır
+  update() {
+    const t = this.getDayProgress(); // 0..1
+    const angle = t * Math.PI * 2 - Math.PI / 2; // Sabah doğudan başlar
+
+    const radius = 3.5;
+
+    // Güneş pozisyonu (yay üzerinde)
+    this.sun.position.set(
+      Math.cos(angle) * radius,
+      Math.sin(angle) * radius,
+      -1.5
+    );
+
+    // Ay güneşin karşısında
+    this.moon.position.set(
+      Math.cos(angle + Math.PI) * radius,
+      Math.sin(angle + Math.PI) * radius,
+      -1.5
+    );
+
+    // Güneş ufkun altındaysa gizle
+    const sunVisible = this.sun.position.y > -0.3;
+    this.sun.visible = sunVisible;
+
+    // Ay gece görünür
+    const moonVisible = !sunVisible || this.moon.position.y > 0.5;
+    this.moon.visible = moonVisible;
+
+    // Yıldızlar sadece geceleyin
+    const nightness = Math.max(0, -this.sun.position.y / radius);
+    this.stars.material.opacity = Math.min(nightness * 1.5, 0.9);
+
+    // Işık şiddeti — güneş pozisyonuna göre
+    const sunHeight = Math.max(0, this.sun.position.y / radius);
+    this.sunLight.intensity = sunHeight * 1.2;
+    this.sunLight.position.copy(this.sun.position);
+
+    // Ay ışığı
+    this.moonLight.intensity = nightness * 0.3;
+    this.moonLight.position.copy(this.moon.position);
+
+    // Ortam ışığı — gündüz açık, gece koyu
+    this.ambientLight.intensity = 0.2 + sunHeight * 0.6;
+
+    // Gökyüzü rengi — sabah pembesi, öğlen mavi, akşam turuncusu, gece lacivert
+    this.updateSkyColor(t);
+
+    // Güneş ışınları animasyonu
+    this.sun.rotation.z += 0.002;
+  }
+
+  updateSkyColor(t) {
+    // t: 0=gece yarısı, 0.25=sabah, 0.5=öğlen, 0.75=akşam
+    let skyColor, fogColor;
+
+    if (t < 0.2 || t > 0.85) {
+      // Gece
+      skyColor = new THREE.Color(0x0a0a1a);
+      fogColor = new THREE.Color(0x0a0a1a);
+    } else if (t < 0.28) {
+      // Şafak — mor/pembe
+      skyColor = new THREE.Color(0xff7043).lerp(new THREE.Color(0x87ceeb), (t - 0.2) / 0.08);
+      fogColor = skyColor;
+    } else if (t < 0.72) {
+      // Gündüz — açık mavi
+      skyColor = new THREE.Color(0x87ceeb);
+      fogColor = new THREE.Color(0xb0d4e8);
+    } else {
+      // Akşam — turuncu/kırmızı
+      skyColor = new THREE.Color(0x87ceeb).lerp(new THREE.Color(0xff5722), (t - 0.72) / 0.13);
+      fogColor = skyColor;
+    }
+
+    this.renderer.setClearColor(skyColor);
+    if (this.scene.fog) this.scene.fog.color.copy(fogColor);
+  }
+
+  dispose() {
+    this.scene.remove(this.sun, this.moon, this.stars);
+    this.scene.remove(this.sunLight, this.moonLight, this.ambientLight);
+  }
+}
+```
+
+### `main.js` animate loop'a ekle:
+```javascript
+// main.js — init içinde:
+import { DayNightCycle } from './js/daynight.js';
+const dayNight = new DayNightCycle(scene, renderer);
+
+// animate fonksiyonu içinde:
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+
+  dayNight.update();           // Güneş/ay/gökyüzü
+  rainSystem.update(delta);    // Yağmur partikülleri (varsa)
+  // ... diğer güncellemeler
+  renderer.render(scene, camera);
+}
+```
+
+---
+
+## 🌦️ ÖZELLİK 4: HAVA DURUMU GÖSTERGESİ — EKRAN KENARI
+
+Ekranın **sağ üst köşesine** hava durumu + sıcaklık tahmini kartı:
+
+```javascript
+// ui.js
+function renderWeatherWidget() {
+  const weather = Weather.current;
+  const season  = Weather.getSeason();
+  const now     = new Date();
+  const hour    = now.getHours();
+
+  // Mevsim + saate göre tahmini sıcaklık (gerçekçi değil, oyun için)
+  const baseTempBySeason = { spring: 15, summer: 28, autumn: 12, winter: -2 };
+  const timeVariation = Math.sin((hour - 6) / 24 * Math.PI * 2) * 6;
+  const weatherVariation = { sunny: 3, cloudy: 0, rainy: -4, stormy: -7 };
+  const temp = Math.round(
+    baseTempBySeason[season] + timeVariation + weatherVariation[weather]
+  );
+
+  // Günün saatine göre zaman etiketi
+  let timeLabel = '';
+  if (hour >= 5  && hour < 12) timeLabel = '🌅 Sabah';
+  else if (hour >= 12 && hour < 17) timeLabel = '☀️ Öğleden Sonra';
+  else if (hour >= 17 && hour < 21) timeLabel = '🌆 Akşam';
+  else timeLabel = '🌙 Gece';
+
+  const weatherLabels = {
+    sunny:  { label: 'Güneşli',  icon: '☀️' },
+    cloudy: { label: 'Bulutlu',  icon: '🌥️' },
+    rainy:  { label: 'Yağmurlu', icon: '🌧️' },
+    stormy: { label: 'Fırtınalı',icon: '⛈️' }
+  };
+  const w = weatherLabels[weather];
+
+  // Sonraki hava değişimi ne zaman?
+  const slotMinutes = 360; // 6 saat
+  const currentSlotStart = Math.floor(hour / 6) * 6 * 60;
+  const minutesInSlot = (hour % 6) * 60 + now.getMinutes();
+  const minutesLeft = slotMinutes - minutesInSlot;
+  const hoursLeft = Math.floor(minutesLeft / 60);
+  const minsLeft  = minutesLeft % 60;
+
+  document.getElementById('weather-widget').innerHTML = `
+    <div class="weather-card">
+      <div class="weather-main">
+        <span class="weather-icon-big">${w.icon}</span>
+        <div class="weather-details">
+          <span class="weather-label">${w.label}</span>
+          <span class="weather-temp">${temp}°C</span>
+        </div>
+      </div>
+      <div class="weather-sub">
+        <span class="time-label">${timeLabel}</span>
+        <span class="weather-change">🔄 ${hoursLeft}s ${minsLeft}dk</span>
+      </div>
+    </div>
+  `;
+}
+```
+
+```css
+/* style.css */
+.weather-card {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  padding: 8px 12px;
+  backdrop-filter: blur(8px);
+  z-index: 10;
+  min-width: 110px;
+}
+.weather-main    { display: flex; align-items: center; gap: 8px; }
+.weather-icon-big{ font-size: 22px; }
+.weather-label   { color: #fff; font-size: 11px; font-weight: 600; display: block; }
+.weather-temp    { color: #ffd700; font-size: 13px; font-weight: 700; display: block; }
+.weather-sub     { display: flex; justify-content: space-between; margin-top: 4px; }
+.time-label      { color: rgba(255,255,255,0.6); font-size: 9px; }
+.weather-change  { color: rgba(255,255,255,0.5); font-size: 9px; }
+```
+
+---
+
+## 🎨 ÖZELLİK 5: MEVSİM GÖRSEL EFEKTLERİ
+
+### Three.js Sahnesine Mevsim Renkleri:
+
+```javascript
+// weather.js'e ekle
+export function applySeasonToScene(scene, season) {
+  // Zemin rengi mevsime göre değişsin
+  const groundColors = {
+    spring: 0x4a9e3f,  // Canlı yeşil
+    summer: 0x3d8c35,  // Koyu yeşil
+    autumn: 0x8b6914,  // Sarı/kahve
+    winter: 0xddeeff   // Kar beyazı
+  };
+
+  // Zemin mesh'ini bul ve rengini değiştir
+  scene.traverse(obj => {
+    if (obj.userData.isGround) {
+      obj.material.color.setHex(groundColors[season]);
+    }
+    // Plot/tarla hücrelerinin boş hallerini de güncelle
+    if (obj.userData.isEmptyPlot) {
+      const plotColors = {
+        spring: 0x6b4226,
+        summer: 0x5a3a1a,
+        autumn: 0x7a5230,
+        winter: 0x8a7a6a  // Donmuş toprak
+      };
+      obj.material.color.setHex(plotColors[season]);
+    }
+  });
+
+  // Kış mevsiminde ekimi engelle (bazı ürünler)
+  if (season === 'winter') {
+    // Plot'ların üzerine ince kar tabakası ekle
+    applySnowToPlots(scene);
+  }
+}
+
+// Sonbahar yaprak animasyonu
+export class LeafSystem {
+  constructor(scene) {
+    this.scene = scene;
+    this.leaves = [];
+    this.active = false;
+  }
+
+  start() {
+    if (this.active) return;
+    this.active = true;
+    // 30 yaprak
+    for (let i = 0; i < 30; i++) {
+      const leaf = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.04, 0.05),
+        new THREE.MeshBasicMaterial({
+          color: [0xFF8C42, 0xFFB347, 0xCC5200, 0xFFD700][Math.floor(Math.random()*4)],
+          side: THREE.DoubleSide, transparent: true, opacity: 0.85
+        })
+      );
+      leaf.position.set(
+        (Math.random() - 0.5) * 5,
+        1 + Math.random() * 2,
+        (Math.random() - 0.5) * 5
+      );
+      leaf.userData = {
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: -(0.1 + Math.random() * 0.2),
+        vz: (Math.random() - 0.5) * 0.3,
+        rotSpeed: (Math.random() - 0.5) * 0.05
+      };
+      this.scene.add(leaf);
+      this.leaves.push(leaf);
+    }
+  }
+
+  update(delta) {
+    if (!this.active) return;
+    this.leaves.forEach(leaf => {
+      const d = leaf.userData;
+      leaf.position.x += d.vx * delta;
+      leaf.position.y += d.vy * delta;
+      leaf.position.z += d.vz * delta;
+      leaf.rotation.z += d.rotSpeed;
+      // Yere düştüyse yukarıdan tekrar başlat
+      if (leaf.position.y < -0.2) {
+        leaf.position.set(
+          (Math.random() - 0.5) * 5,
+          1.5 + Math.random(),
+          (Math.random() - 0.5) * 5
+        );
+      }
+    });
+  }
+
+  stop() {
+    this.leaves.forEach(l => { this.scene.remove(l); l.geometry.dispose(); l.material.dispose(); });
+    this.leaves = [];
+    this.active = false;
+  }
+}
+```
+
+---
+
+## 📋 ETKİLENEN DOSYALAR
+
+| Dosya | İşlem |
+|-------|-------|
+| `js/daynight.js` | Yeni oluştur — güneş/ay/yıldız/gökyüzü |
+| `js/weather.js` | Güncelle — mevsim efektleri, sonbahar yaprakları |
+| `js/particles.js` | Güncelle — LeafSystem ekle |
+| `js/crops.js` | `seasons` alanları ekle/güncelle |
+| `js/ui.js` | Mevsim widget + hava widget + tohum picker mevsim bilgisi |
+| `js/main.js` | DayNightCycle init + animate loop güncellemesi |
+| `style.css` | Widget stilleri |
+
+---
+
+## ⚠️ ÖNEMLI NOTLAR
+
+1. **`DayNightCycle.update()`** her frame çağrılır — hafif tut, gereksiz new THREE.Color() döngü içinde oluşturma
+2. **Gerçek saat kullan** — `new Date()` ile, oyun saati değil
+3. **Dispose zorunlu** — sahne değişince `dayNight.dispose()` çağır
+4. **Mevsim widget her dakika güncellenir** — `setInterval(renderSeasonWidget, 60000)`
+5. **Hava widget her saniye güncellenir** (geri sayım için) — `setInterval(renderWeatherWidget, 1000)`
+6. **Kış mevsiminde** `sunflower`, `tomato`, `blueberry` ekilemez — tohum picker'da açıkça göster
+7. **Performans modunda** yıldız sayısını 200'den 50'ye düşür, yaprak sayısını 30'dan 10'a

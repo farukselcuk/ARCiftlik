@@ -39,9 +39,25 @@
               <div class="xp-bar-fill" id="xp-bar-fill" style="width: 0%"></div>
             </div>
           </div>
-          <div class="env-badges">
-            <span id="weather-badge" class="env-badge" title="Hava Durumu">☀️</span>
-            <span id="season-badge" class="env-badge" title="Mevsim">🌱</span>
+          <div class="env-widgets">
+            <div class="env-widget season-widget" id="season-widget" title="Mevsim Bilgisi">
+              <span class="env-widget-icon" id="season-icon">🌸</span>
+              <div class="env-widget-info">
+                <span class="env-widget-label" id="season-name">İlkbahar</span>
+                <span class="env-widget-sub" id="season-month">Haziran</span>
+              </div>
+            </div>
+            <div class="env-widget time-widget" id="time-widget" title="Saat">
+              <span class="env-widget-icon" id="time-phase-icon">☀️</span>
+              <span class="env-widget-label" id="time-display">12:00</span>
+            </div>
+            <div class="env-widget weather-widget" id="weather-widget" title="Hava Durumu">
+              <span class="env-widget-icon" id="weather-icon">☀️</span>
+              <div class="env-widget-info">
+                <span class="env-widget-label" id="weather-temp">25°C</span>
+                <span class="env-widget-sub" id="weather-name">Güneşli</span>
+              </div>
+            </div>
           </div>
         </div>
         <div class="control-buttons">

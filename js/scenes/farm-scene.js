@@ -6,9 +6,10 @@ import { Pet } from "../pet.js";
 import { ChestSystem } from "../chests.js";
 import { SeasonSystem } from "../seasons.js";
 import { WeatherSystem } from "../weather.js";
+import { DayNightCycle } from "../daynight.js";
 import { Input } from "../input.js";
-import { CROP_TYPES, getStage } from "../crops.js";
-import { RainSystem, SnowSystem } from "../particles.js";
+import { CROP_TYPES, getStage, GOLDEN_CHANCE } from "../crops.js";
+import { RainSystem, SnowSystem, LeafSystem } from "../particles.js";
 import { createDecorationMesh, DECORATION_ZONES } from "../decorations.js";
 
 export class FarmScene {
@@ -37,6 +38,10 @@ export class FarmScene {
     this.ambientLight = null;
     this.sunLight = null;
     this.firefliesGroup = null;
+    this.dayNightCycle = new DayNightCycle();
+    this.leafSystem = null;
+    this.groundMesh = null;
+    this._lastSeasonForGround = null;
 
     this.harvestQueue = [];
     this.queuedPlots = new Set();
@@ -77,6 +82,7 @@ export class FarmScene {
     ground.position.y = -0.005;
     ground.receiveShadow = true;
     ground.name = "fallback-ground";
+    this.groundMesh = ground;
     this.scene.add(ground);
 
     const gridHelper = new THREE.GridHelper(2.4, 18, 0x3a5c4a, 0x2a4638);
@@ -614,8 +620,9 @@ export class FarmScene {
       const result = this.farm.harvest(plotIndex);
       if (result) {
         const { crop, fertilizer } = result;
-        // Altın ürün şansı %1, Altın Gübre varsa %100!
-        const isGolden = (fertilizer === "fertilizer_golden") || (Math.random() < 0.01);
+        // Altın ürün şansı GOLDEN_CHANCE, Altın Gübre varsa %100!
+        const isGolden = (fertilizer === "fertilizer_golden") || (Math.random() < GOLDEN_CHANCE);
+        
         window.dispatchEvent(new CustomEvent("crop-harvested", {
           detail: { cropId: crop.id, name: crop.name, isGolden }
         }));
@@ -639,25 +646,37 @@ export class FarmScene {
       this.farm.seasonGrowMultiplier = window.seasonSystem.getGrowMultiplier();
     }
 
-    // Yağmur / Kar parçacıkları
+    const currentS = window.seasonSystem ? window.seasonSystem.current : "spring";
+
+    // Yağmur / Kar / Yaprak parçacıkları
     if (window.weatherSystem && this.rainSystem && this.snowSystem) {
       const currentW = window.weatherSystem.current;
-      const currentS = window.seasonSystem ? window.seasonSystem.current : "spring";
       
       if (currentW === "rainy" || currentW === "storm") {
         this.rainSystem.start();
         this.snowSystem.stop();
+        if (this.leafSystem) this.leafSystem.stop();
       } else if (currentS === "winter") {
         this.snowSystem.start();
         this.rainSystem.stop();
+        if (this.leafSystem) this.leafSystem.stop();
+      } else if (currentS === "autumn") {
+        if (this.leafSystem) this.leafSystem.start();
+        this.rainSystem.stop();
+        this.snowSystem.stop();
       } else {
         this.rainSystem.stop();
         this.snowSystem.stop();
+        if (this.leafSystem) this.leafSystem.stop();
       }
 
       this.rainSystem.update(dt);
       this.snowSystem.update(dt);
+      if (this.leafSystem) this.leafSystem.update(dt);
     }
+
+    // Mevsime göre zemin rengini güncelle
+    this.updateSeasonalGround(currentS);
 
     this.farm.update(realNow, this.camera);
     if (!this.isReadOnly) {
@@ -666,7 +685,8 @@ export class FarmScene {
       this.chestSystem.update(realNow);
     }
 
-    this.updateDayNightCycle(realNow);
+    // DayNightCycle güncelle (gerçek saat bazlı)
+    this.dayNightCycle.update(this.ambientLight, this.sunLight, this.firefliesGroup, realNow);
   }
 
   // ── DEKORASYON & SOSYAL METODLARI ──────────────────────────────
@@ -840,67 +860,34 @@ export class FarmScene {
   dispose() {
     if (this.rainSystem) this.rainSystem.dispose();
     if (this.snowSystem) this.snowSystem.dispose();
+    if (this.leafSystem) this.leafSystem.dispose();
   }
 
-  updateDayNightCycle(now) {
-    if (!this.ambientLight || !this.sunLight) return;
-    
-    // Day Night Cycle parametrelerini globalden çekiyoruz
-    const cycleStartTime = window.cycleStartTime || Date.now();
-    const TOTAL_CYCLE = 90000; // 1.5 dakika
-    const elapsed = (now - cycleStartTime) % TOTAL_CYCLE;
-    
-    let phase = "day";
-    let t = 0;
-    
-    let targetAmbientIntensity = 1.5;
-    let targetSunIntensity = 2.2;
-    let targetSunColor = new THREE.Color(0xffffff);
-    
-    if (elapsed < 30000) {
-      phase = "day";
-    } else if (elapsed < 45000) {
-      phase = "sunset";
-      t = (elapsed - 30000) / 15000;
-      targetAmbientIntensity = THREE.MathUtils.lerp(1.5, 0.7, t);
-      targetSunIntensity = THREE.MathUtils.lerp(2.2, 0.8, t);
-      targetSunColor.lerpColors(new THREE.Color(0xffffff), new THREE.Color(0xff7744), t);
-    } else if (elapsed < 75000) {
-      phase = "night";
-      t = (elapsed - 45000) / 30000;
-      if (t < 0.2) {
-        const transitionT = t / 0.2;
-        targetAmbientIntensity = THREE.MathUtils.lerp(0.7, 0.35, transitionT);
-        targetSunIntensity = THREE.MathUtils.lerp(0.8, 0.15, transitionT);
-        targetSunColor.lerpColors(new THREE.Color(0xff7744), new THREE.Color(0x5577aa), transitionT);
-      } else {
-        targetAmbientIntensity = 0.35;
-        targetSunIntensity = 0.15;
-        targetSunColor.setHex(0x5577aa);
-      }
-    } else {
-      phase = "sunrise";
-      t = (elapsed - 75000) / 15000;
-      targetAmbientIntensity = THREE.MathUtils.lerp(0.35, 1.5, t);
-      targetSunIntensity = THREE.MathUtils.lerp(0.15, 2.2, t);
-      targetSunColor.lerpColors(new THREE.Color(0x5577aa), new THREE.Color(0xffaa66), t);
+  /**
+   * Mevsime göre zemin rengini ve parçacık sistemlerini günceller.
+   * @param {string} seasonId
+   */
+  updateSeasonalGround(seasonId) {
+    if (this._lastSeasonForGround === seasonId) return;
+    this._lastSeasonForGround = seasonId;
+
+    // Mevsime göre zemin rengi
+    const GROUND_COLORS = {
+      spring: 0x2a5e2e,  // Canlı yeşil
+      summer: 0x3a7a3a,  // Koyu yeşil
+      autumn: 0x5a4a28,  // Kahverengi-sarı
+      winter: 0xc8d8e8   // Kar beyazı-mavi
+    };
+
+    const color = GROUND_COLORS[seasonId] || GROUND_COLORS.spring;
+
+    if (this.groundMesh && this.groundMesh.material) {
+      this.groundMesh.material.color.setHex(color);
     }
-    
-    this.ambientLight.intensity = targetAmbientIntensity;
-    this.sunLight.intensity = targetSunIntensity;
-    this.sunLight.color.copy(targetSunColor);
-    
-    if (this.firefliesGroup) {
-      const isNightPhase = phase === "night";
-      this.firefliesGroup.visible = isNightPhase;
-      if (isNightPhase) {
-        const timeSec = now * 0.001;
-        this.firefliesGroup.children.forEach((ff) => {
-          ff.position.x = ff.userData.baseX + Math.sin(timeSec + ff.userData.seedX) * 0.08;
-          ff.position.y = ff.userData.baseY + Math.sin(timeSec * 1.5 + ff.userData.seedY) * 0.05;
-          ff.position.z = ff.userData.baseZ + Math.cos(timeSec + ff.userData.seedZ) * 0.08;
-        });
-      }
+
+    // Yaprak sistemi henüz oluşturulmadıysa oluştur
+    if (!this.leafSystem) {
+      this.leafSystem = new LeafSystem(this.scene);
     }
   }
 
