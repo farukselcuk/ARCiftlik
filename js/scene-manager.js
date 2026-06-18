@@ -2,6 +2,7 @@ import { FarmScene } from "./scenes/farm-scene.js";
 import { BarnScene } from "./scenes/barn-scene.js";
 import { BakeryScene } from "./scenes/bakery-scene.js";
 import { MarketScene } from "./scenes/market-scene.js";
+import { CarpenterScene } from "./scenes/carpenter-scene.js";
 
 export class SceneManager {
   /**
@@ -24,7 +25,8 @@ export class SceneManager {
       farm: new FarmScene(renderer, globalStorage, farmStorage),
       barn: new BarnScene(renderer, globalStorage, barnStorage),
       bakery: new BakeryScene(renderer, globalStorage, bakeryStorage),
-      market: new MarketScene(renderer, globalStorage, marketStorage)
+      market: new MarketScene(renderer, globalStorage, marketStorage),
+      carpenter: new CarpenterScene(renderer, globalStorage)
     };
 
     this.activeSceneKey = "farm";

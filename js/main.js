@@ -566,6 +566,7 @@ window.addEventListener("crop-harvested", (e) => {
     const itemType = isOak ? "wood_oak" : "wood_pine";
     const woodCount = Math.floor(Math.random() * 3) + 3; // 3 to 5
     inventory.add(itemType, woodCount);
+    inventory.add("wood", woodCount); // Add generic wood for furniture
     ui.showToast(`${woodCount} adet ${isOak ? "Meşe Odunu" : "Çam Odunu"} elde ettin! 🪓`);
     character.addXP(12, "chop_tree");
   } else if (isGolden) {
@@ -1051,6 +1052,28 @@ closeWarehouseBtn.addEventListener("click", (e) => {
   warehousePanel.classList.remove("is-visible");
 });
 
+// Carpenter Modal
+const carpenterPanel = document.querySelector("#carpenter-modal");
+const openCarpenterBtn = document.querySelector("#open-carpenter-btn");
+const closeCarpenterBtn = document.querySelector("#close-carpenter");
+
+if (openCarpenterBtn) {
+  openCarpenterBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audioSystem) audioSystem.playPlace();
+    updateCarpenterUI();
+    carpenterPanel.classList.add("is-visible");
+  });
+}
+
+if (closeCarpenterBtn) {
+  closeCarpenterBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audioSystem) audioSystem.playPlace();
+    carpenterPanel.classList.remove("is-visible");
+  });
+}
+
 window.addEventListener("open-warehouse-panel", () => {
   if (audioSystem) audioSystem.playPlace();
   updateWarehouseUI();
@@ -1271,6 +1294,20 @@ function updateMarketUI() {
     if (fBasicBuy) fBasicBuy.disabled = ui.coins < 20;
     if (fSuperBuy) fSuperBuy.disabled = ui.coins < 50;
     if (fGoldenBuy) fGoldenBuy.disabled = ui.coins < 120;
+    
+    // Marangoz malzemeleri
+    const materials = [
+      { id: "nails", price: 10 },
+      { id: "varnish", price: 25 },
+      { id: "hinges", price: 40 }
+    ];
+    
+    materials.forEach(mat => {
+      const ownedEl = document.querySelector(`#material-${mat.id}-owned`);
+      const buyBtn = document.querySelector(`#buy-material-${mat.id}`);
+      if (ownedEl) ownedEl.textContent = `Sahip Olunan: ${inventory.getCount(mat.id)}`;
+      if (buyBtn) buyBtn.disabled = ui.coins < mat.price;
+    });
   }
 }
 
@@ -1426,19 +1463,79 @@ function updateWarehouseUI() {
       }
     });
   });
+
+  // Marangoz Ürünleri Satışları
+  const CARPENTER_SELL_ITEMS = {
+    wooden_chair: { name: "🪑 Ahşap Sandalye", price: 120 },
+    wooden_table: { name: "🪚 Ahşap Masa", price: 260 },
+    bookshelf: { name: "📚 Kitaplık", price: 400 },
+    cabinet: { name: "🚪 Dolap", price: 580 },
+    wooden_bed: { name: "🛏️ Ahşap Yatak", price: 800 },
+    rocking_chair: { name: "🪑 Sallanan Sandalye", price: 320 }
+  };
+
+  Object.keys(CARPENTER_SELL_ITEMS).forEach((itemId) => {
+    const count = inventory.getCount(itemId);
+    if (count <= 0) return;
+    const price = CARPENTER_SELL_ITEMS[itemId].price;
+    const name = CARPENTER_SELL_ITEMS[itemId].name;
+    
+    const itemEl = document.createElement("div");
+    itemEl.className = "sell-item sell-item-carpenter";
+    itemEl.innerHTML = `
+      <div class="sell-info">
+        <span class="sell-name">${name}</span>
+        <span class="sell-count">Stok: ${count}</span>
+      </div>
+      <button class="sell-button" type="button" style="background: #8b5a2b;">
+        Sat: ${price} 🪙
+      </button>
+    `;
+    sellListEl.appendChild(itemEl);
+    
+    itemEl.querySelector(".sell-button").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (inventory.deduct(itemId, 1)) {
+        ui.updateCoins(price);
+        ui.showToast(`1 adet ${name} satıldı!`);
+        character.addXP(15, "sell_carpenter");
+        updateWarehouseUI();
+      }
+    });
+  });
 }
 
 function updateOrdersUI() {
-  const ordersListEl = document.querySelector("#orders-list");
-  if (!ordersListEl) return;
-  ordersListEl.innerHTML = "";
+  const townListEl = document.querySelector("#orders-list-town");
+  const boatListEl = document.querySelector("#orders-list-boat");
   
+  if (!townListEl && !boatListEl) return;
+  
+  if (townListEl) townListEl.innerHTML = "";
+  if (boatListEl) boatListEl.innerHTML = "";
+  
+  if (!orders || !orders.list) return;
+
+  const INGREDIENT_NAMES = {
+    wood: "Odun 🪵",
+    nails: "Çivi 🔩",
+    varnish: "Cila 🛢️",
+    hinges: "Menteşe 🗜️",
+    wood_oak: "Meşe Odunu 🪵",
+    wood_pine: "Çam Odunu 🪵"
+  };
+
   orders.list.forEach((order) => {
     const itemEl = document.createElement("div");
     itemEl.className = "order-item";
+    itemEl.style.padding = "10px";
+    itemEl.style.borderRadius = "8px";
+    itemEl.style.background = "rgba(0,0,0,0.3)";
+    itemEl.style.border = "1px solid rgba(255,255,255,0.05)";
     
     let reqsHtml = "";
     const canComplete = orders.canFulfill(order.id, inventory);
+    
     const cropNames = {};
     Object.keys(CROP_TYPES).forEach(k => {
       cropNames[k] = `${CROP_EMOJIS[k]} ${CROP_TYPES[k].name}`;
@@ -1447,34 +1544,46 @@ function updateOrdersUI() {
     order.reqs.forEach((req) => {
       const hasCount = inventory.getCount(req.cropId);
       const isMet = hasCount >= req.amount;
+      const displayName = cropNames[req.cropId] || INGREDIENT_NAMES[req.cropId] || req.cropId;
       reqsHtml += `
-        <span class="order-req ${isMet ? "is-met" : "is-missing"}">
-          ${cropNames[req.cropId] || req.cropId}: ${hasCount}/${req.amount}
+        <span class="order-req ${isMet ? "is-met" : "is-missing"}" style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.1); color: ${isMet ? '#2ecc71' : '#e74c3c'}">
+          ${displayName}: ${hasCount}/${req.amount}
         </span>
       `;
     });
     
     itemEl.innerHTML = `
-      <div class="order-header">
-        <span class="order-villager">👤 ${order.villager}</span>
-        <span class="order-reward">🪙 ${order.reward}</span>
+      <div class="order-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span class="order-villager" style="font-weight: bold; font-size: 13px;">${order.isBoat ? "🚢" : "👤"} ${order.villager}</span>
+        <span class="order-reward" style="font-size: 13px; color: var(--accent); font-weight: bold;">🪙 ${order.reward}</span>
       </div>
-      <div class="order-reqs">
+      <div class="order-reqs" style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px;">
         ${reqsHtml}
       </div>
-      <button class="primary-button order-complete-btn" type="button" ${!canComplete ? "disabled" : ""}>
-        Siparişi Tamamla
+      <button class="primary-button order-complete-btn" type="button" ${!canComplete ? "disabled" : ""} style="margin: 0; min-height: 32px; font-size: 12px; width: 100%;">
+        ${order.isBoat ? "Gemiyi Doldur" : "Siparişi Tamamla"}
       </button>
     `;
-    ordersListEl.appendChild(itemEl);
+    
+    if (order.isBoat && boatListEl) {
+      boatListEl.appendChild(itemEl);
+    } else if (townListEl) {
+      townListEl.appendChild(itemEl);
+    } else {
+      // Fallback
+      if (document.querySelector("#orders-list")) {
+        document.querySelector("#orders-list").appendChild(itemEl);
+      }
+    }
     
     itemEl.querySelector(".order-complete-btn").addEventListener("click", (e) => {
       e.stopPropagation();
       const fulfilled = orders.fulfill(order.id, inventory);
       if (fulfilled) {
         ui.updateCoins(fulfilled.reward);
-        ui.showToast(`Sipariş tamamlandı! +${fulfilled.reward} 🪙`);
-        character.addXP(15, "order");
+        ui.showToast(`${fulfilled.isBoat ? '🚢 Gemi yola çıktı!' : '📦 Sipariş tamamlandı!'} +${fulfilled.reward} 🪙`);
+        if (audioSystem) audioSystem.playCoin();
+        character.addXP(fulfilled.isBoat ? 25 : 15, "order");
         updateOrdersUI();
         updateWarehouseUI();
       }
@@ -1498,6 +1607,27 @@ document.querySelectorAll(".buy-fertilizer-btn").forEach(btn => {
       const names = { fertilizer_basic: "Basit Gübre", fertilizer_super: "Süper Gübre", fertilizer_golden: "Altın Gübre" };
       ui.showToast(`1 adet ${names[type]} satın alındı!`);
       updateMarketUI();
+    } else {
+      ui.showToast("🪙 Yetersiz Altın!");
+    }
+  });
+});
+
+// Marangoz Malzemesi Satın Alma
+document.querySelectorAll(".buy-material-btn").forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const type = btn.dataset.type;
+    const cost = parseInt(btn.dataset.price) || 10;
+    
+    if (ui.coins >= cost) {
+      ui.updateCoins(-cost);
+      inventory.add(type, 1);
+      const names = { nails: "Çivi", varnish: "Cila", hinges: "Menteşe" };
+      ui.showToast(`1 adet ${names[type]} satın alındı!`);
+      if (audioSystem) audioSystem.playCoin();
+      updateMarketUI();
+      updateCarpenterUI();
     } else {
       ui.showToast("🪙 Yetersiz Altın!");
     }
@@ -2796,3 +2926,199 @@ document.addEventListener("scene-changed", (e) => {
     bakeryPanel.style.display = scene === "bakery" ? "block" : "none";
   }
 });
+
+// ── MARANGOZ ATÖLYESİ VE ÜRETİM KUYRUĞU ──────────────────────────
+const CARPENTER_RECIPES = {
+  wooden_chair: { id: "wooden_chair", name: "Ahşap Sandalye", duration: 30000, reqs: { wood: 3, nails: 2 }, rewardXP: 15, emoji: "🪑" },
+  wooden_table: { id: "wooden_table", name: "Ahşap Masa", duration: 60000, reqs: { wood: 5, nails: 4, varnish: 1 }, rewardXP: 30, emoji: "🪚" },
+  bookshelf: { id: "bookshelf", name: "Kitaplık", duration: 90000, reqs: { wood: 8, nails: 6, varnish: 2 }, rewardXP: 50, emoji: "📚" },
+  cabinet: { id: "cabinet", name: "Dolap", duration: 120000, reqs: { wood: 10, hinges: 2, nails: 8 }, rewardXP: 70, emoji: "🚪" },
+  wooden_bed: { id: "wooden_bed", name: "Ahşap Yatak", duration: 150000, reqs: { wood: 12, nails: 10, varnish: 2 }, rewardXP: 90, emoji: "🛏️" },
+  rocking_chair: { id: "rocking_chair", name: "Sallanan Sandalye", duration: 80000, reqs: { wood: 6, nails: 4, varnish: 1 }, rewardXP: 45, emoji: "🪑" }
+};
+
+let carpenterQueue = [];
+
+function loadCarpenterState() {
+  const saved = globalStorage.loadField("carpenterQueue");
+  if (Array.isArray(saved)) {
+    carpenterQueue = saved;
+  }
+}
+
+function saveCarpenterState() {
+  globalStorage.saveField("carpenterQueue", carpenterQueue);
+}
+
+function craftFurniture(recipeId) {
+  const recipe = CARPENTER_RECIPES[recipeId];
+  if (!recipe) return;
+
+  const canCraft = Object.keys(recipe.reqs).every(itemId => {
+    return inventory.has(itemId, recipe.reqs[itemId]);
+  });
+
+  if (!canCraft) {
+    ui.showToast("❌ Yetersiz malzeme!");
+    return;
+  }
+
+  Object.keys(recipe.reqs).forEach(itemId => {
+    inventory.deduct(itemId, recipe.reqs[itemId]);
+  });
+
+  carpenterQueue.push({
+    id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+    recipeId: recipeId,
+    startTime: Date.now(),
+    duration: recipe.duration,
+    isReady: false
+  });
+
+  saveCarpenterState();
+  updateCarpenterUI();
+  updateWarehouseUI();
+
+  if (audioSystem) audioSystem.playPlace();
+  ui.showToast(`🛠️ ${recipe.name} yapımına başlandı!`);
+}
+
+function collectFurniture(queueId) {
+  const index = carpenterQueue.findIndex(q => q.id === queueId);
+  if (index === -1) return;
+
+  const item = carpenterQueue[index];
+  if (!item.isReady) return;
+
+  const recipe = CARPENTER_RECIPES[item.recipeId];
+  
+  inventory.add(item.recipeId, 1);
+  character.addXP(recipe.rewardXP, "craft_furniture");
+
+  ui.showToast(`📦 1 adet ${recipe.name} aldın!`);
+  if (audioSystem) audioSystem.playHarvest();
+
+  carpenterQueue.splice(index, 1);
+  
+  saveCarpenterState();
+  updateCarpenterUI();
+  updateWarehouseUI();
+}
+
+window.updateCarpenterUI = function() {
+  const recipesListEl = document.querySelector("#carpenter-recipes-list");
+  const queueListEl = document.querySelector("#carpenter-queue-list");
+  
+  if (!recipesListEl || !queueListEl) return;
+
+  const INGREDIENT_NAMES = {
+    wood: "Odun 🪵",
+    nails: "Çivi 🔩",
+    varnish: "Cila 🛢️",
+    hinges: "Menteşe 🗜️",
+    wood_oak: "Meşe Odunu 🪵",
+    wood_pine: "Çam Odunu 🪵"
+  };
+
+  // Render recipes
+  recipesListEl.innerHTML = "";
+  Object.keys(CARPENTER_RECIPES).forEach(recipeId => {
+    const recipe = CARPENTER_RECIPES[recipeId];
+    
+    let canCraft = true;
+    let reqsHTML = [];
+    Object.keys(recipe.reqs).forEach(reqItem => {
+      const needed = recipe.reqs[reqItem];
+      const has = inventory ? inventory.getCount(reqItem) : 0;
+      if (has < needed) canCraft = false;
+      const color = has >= needed ? "#2ecc71" : "#e74c3c";
+      reqsHTML.push(`<span style="color: ${color}; font-size: 11px;">${INGREDIENT_NAMES[reqItem] || reqItem}: ${has}/${needed}</span>`);
+    });
+
+    const itemEl = document.createElement("div");
+    itemEl.className = "market-item";
+    itemEl.style.padding = "8px";
+    itemEl.innerHTML = `
+      <div class="item-info">
+        <h3 style="font-size: 13px; margin: 0 0 4px 0;">${recipe.name} ${recipe.emoji}</h3>
+        <div style="display: flex; gap: 5px; flex-wrap: wrap; margin: 4px 0;">${reqsHTML.join("")}</div>
+        <div class="item-stats" style="color: var(--accent); font-size: 11px;">XP: +${recipe.rewardXP} | Süre: ${recipe.duration / 1000}s</div>
+      </div>
+      <button class="primary-button craft-btn" type="button" style="margin: 0; min-width: 60px; font-size: 11px; padding: 4px 8px;">Üret</button>
+    `;
+    
+    const btn = itemEl.querySelector(".craft-btn");
+    if (!canCraft) {
+      btn.style.filter = "grayscale(100%)";
+      btn.style.opacity = "0.5";
+      btn.style.cursor = "not-allowed";
+      btn.disabled = true;
+    } else {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        craftFurniture(recipeId);
+      });
+    }
+    
+    recipesListEl.appendChild(itemEl);
+  });
+
+  // Render queue
+  queueListEl.innerHTML = "";
+  if (carpenterQueue.length === 0) {
+    queueListEl.innerHTML = \`<p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; margin-top: 20px;">Kuyruk boş.</p>\`;
+  } else {
+    carpenterQueue.forEach(qItem => {
+      const recipe = CARPENTER_RECIPES[qItem.recipeId];
+      if (!recipe) return;
+
+      const elapsed = Date.now() - qItem.startTime;
+      const progress = Math.min(1, elapsed / qItem.duration);
+      const remainingSec = Math.max(0, Math.round((qItem.duration - elapsed) / 1000));
+      
+      if (progress >= 1 && !qItem.isReady) {
+        qItem.isReady = true;
+        saveCarpenterState();
+      }
+
+      const qEl = document.createElement("div");
+      qEl.className = "market-item";
+      qEl.style.flexDirection = "column";
+      qEl.style.alignItems = "stretch";
+      qEl.style.padding = "10px";
+      
+      if (qItem.isReady) {
+        qEl.innerHTML = \`
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <span style="font-weight: bold; color: #2ecc71; font-size: 13px;">🎉 ${recipe.name} Hazır!</span>
+          </div>
+          <button class="primary-button collect-btn" type="button" style="margin: 0; background: #2ecc71; color: #000; padding: 4px 8px; font-size: 12px;">Topla</button>
+        \`;
+        qEl.querySelector(".collect-btn").addEventListener("click", (e) => {
+          e.stopPropagation();
+          collectFurniture(qItem.id);
+        });
+      } else {
+        qEl.innerHTML = \`
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <span style="font-weight: bold; font-size: 12px;">🛠️ ${recipe.name}</span>
+            <span style="font-size: 11px; color: var(--accent);">${remainingSec}s</span>
+          </div>
+          <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;">
+            <div style="width: ${progress * 100}%; height: 100%; background: var(--accent); transition: width 0.5s;"></div>
+          </div>
+        \`;
+      }
+      
+      queueListEl.appendChild(qEl);
+    });
+  }
+};
+
+loadCarpenterState();
+setInterval(() => {
+  const modal = document.querySelector("#carpenter-modal");
+  if (modal && modal.classList.contains("is-visible")) {
+    updateCarpenterUI();
+  }
+}, 1000);

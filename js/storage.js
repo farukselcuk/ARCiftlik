@@ -17,9 +17,9 @@ const DEFAULTS_BY_NAMESPACE = {
       wheat: 0, corn: 0, carrot: 0, strawberry: 0, potato: 0, sunflower: 0, tomato: 0, pumpkin: 0, blueberry: 0,
       apple: 0, orange: 0,
       golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0,
-      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0,
-      wood_oak: 0, wood_pine: 0,
-      furniture_stool: 0, furniture_table: 0, furniture_cabinet: 0,
+      fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0, basic_fertilizer: 0, super_fertilizer: 0, organic_fertilizer: 0,
+      wood_oak: 0, wood_pine: 0, wood: 0, nails: 0, varnish: 0, hinges: 0,
+      furniture_stool: 0, furniture_table: 0, furniture_cabinet: 0, wooden_chair: 0, wooden_table: 0, bookshelf: 0, cabinet: 0, wooden_bed: 0, rocking_chair: 0,
       flour: 0, bread: 0, strawberry_cake: 0, blueberry_pie: 0, carrot_cake: 0
     },
     shopItems: [],

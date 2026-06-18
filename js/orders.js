@@ -15,7 +15,7 @@ export class Orders {
     let loaded = this.load();
     loaded = this.validateExistingOrders(loaded, playerLevel);
     
-    const orderIds = ["order-1", "order-2", "order-3"];
+    const orderIds = ["town-1", "town-2", "town-3", "boat-1", "boat-2", "boat-3"];
     const newList = [];
     
     for (const id of orderIds) {
@@ -45,7 +45,8 @@ export class Orders {
 
   generateOrder(id, playerLevel = 1) {
     const lvl = Math.max(1, Number(playerLevel) || 1);
-    const villager = VILLAGERS[Math.floor(Math.random() * VILLAGERS.length)];
+    const isBoat = id.startsWith("boat");
+    const villager = isBoat ? "Tüccar Gemi" : VILLAGERS[Math.floor(Math.random() * VILLAGERS.length)];
     
     // Sadece açık olan ve ağaç OLMAYAN ürünleri listele
     const availableCrops = Object.values(CROP_TYPES).filter(
@@ -56,8 +57,11 @@ export class Orders {
       ? availableCrops.map((c) => c.id) 
       : ["wheat", "corn"];
     
-    // Choose 1 or 2 different crop requirements
-    const count = Math.random() > 0.65 && cropKeys.length > 1 ? 2 : 1;
+    // Kasaba 1-2 çeşit ürün ister, Gemi 2-3 çeşit ister
+    const count = isBoat 
+      ? (Math.random() > 0.5 && cropKeys.length > 2 ? 3 : 2)
+      : (Math.random() > 0.65 && cropKeys.length > 1 ? 2 : 1);
+      
     const reqs = [];
     const chosenCrops = new Set();
 
@@ -68,23 +72,28 @@ export class Orders {
       } while (chosenCrops.has(cropId));
 
       chosenCrops.add(cropId);
-      // Determine amount: Wheat 2-4, Corn 1-3, Strawberry 1-2, Sunflower 1-2
+      
       let amount = 1;
       if (cropId === "wheat") amount = 2 + Math.floor(Math.random() * 3);
       else if (cropId === "corn") amount = 1 + Math.floor(Math.random() * 3);
       else amount = 1 + Math.floor(Math.random() * 2);
 
+      // Gemiler x3 daha fazla ister
+      if (isBoat) amount *= (2 + Math.floor(Math.random() * 2));
+
       reqs.push({ cropId, amount });
     }
 
-    // Calculate reward with 20% to 35% bonus
     let baseValue = 0;
     for (const req of reqs) {
       baseValue += CROP_TYPES[req.cropId].reward * req.amount;
     }
-    const reward = Math.round(baseValue * (1.2 + Math.random() * 0.15));
+    
+    // Gemi ekstra %50 bonus verir
+    const bonus = isBoat ? (1.5 + Math.random() * 0.2) : (1.2 + Math.random() * 0.15);
+    const reward = Math.round(baseValue * bonus);
 
-    return { id, villager, reqs, reward };
+    return { id, villager, reqs, reward, isBoat };
   }
 
   validateExistingOrders(orders, playerLevel) {
@@ -131,9 +140,12 @@ export class Orders {
   reset() {
     const playerLevel = Number(this._storage.loadField("level")) || 1;
     this.list = [
-      this.generateOrder("order-1", playerLevel),
-      this.generateOrder("order-2", playerLevel),
-      this.generateOrder("order-3", playerLevel)
+      this.generateOrder("town-1", playerLevel),
+      this.generateOrder("town-2", playerLevel),
+      this.generateOrder("town-3", playerLevel),
+      this.generateOrder("boat-1", playerLevel),
+      this.generateOrder("boat-2", playerLevel),
+      this.generateOrder("boat-3", playerLevel)
     ];
     this.save();
   }

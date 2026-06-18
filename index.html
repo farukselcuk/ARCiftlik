@@ -257,6 +257,31 @@
               </div>
               <button id="buy-fertilizer-golden" class="primary-button buy-fertilizer-btn" data-type="fertilizer_golden" type="button">Satın Al (120 🪙)</button>
             </div>
+            <!-- Marangoz Malzemeleri -->
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Çivi 🔩</h3>
+                <p>Mobilya üretimi için temel malzeme.</p>
+                <div class="item-stats" id="material-nails-owned">Sahip Olunan: 0</div>
+              </div>
+              <button id="buy-material-nails" class="primary-button buy-material-btn" data-type="nails" data-price="10" type="button">Satın Al (10 🪙)</button>
+            </div>
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Cila 🛢️</h3>
+                <p>Mobilyalara parlaklık vermek için kullanılır.</p>
+                <div class="item-stats" id="material-varnish-owned">Sahip Olunan: 0</div>
+              </div>
+              <button id="buy-material-varnish" class="primary-button buy-material-btn" data-type="varnish" data-price="25" type="button">Satın Al (25 🪙)</button>
+            </div>
+            <div class="market-item">
+              <div class="item-info">
+                <h3>Menteşe 🗜️</h3>
+                <p>Dolap ve yatak gibi eşyalar için gerekir.</p>
+                <div class="item-stats" id="material-hinges-owned">Sahip Olunan: 0</div>
+              </div>
+              <button id="buy-material-hinges" class="primary-button buy-material-btn" data-type="hinges" data-price="40" type="button">Satın Al (40 🪙)</button>
+            </div>
           </div>
         </div>
       </section>
@@ -275,11 +300,22 @@
 
       <!-- Orders Modal -->
       <section id="orders-panel" class="orders-modal">
-        <div class="orders-content">
+        <div class="orders-content" style="width: min(700px, calc(100vw - 32px));">
           <button id="close-orders" class="close-button" type="button" aria-label="Close orders">✕</button>
-          <h2>Order Board</h2>
-          <div id="orders-list" class="orders-list">
-            <!-- Populated dynamically by JS -->
+          <h2>📋 Sipariş Panosu</h2>
+          <div style="display: flex; gap: 15px; margin-top: 15px;">
+            <div style="flex: 1; display: flex; flex-direction: column; background: rgba(0,0,0,0.15); border-radius: 8px; padding: 10px;">
+               <h3 style="color: #4eb36a; text-align: center; margin-top: 0; font-size: 15px;">🏡 Kasaba Siparişleri</h3>
+               <div id="orders-list-town" class="orders-list" style="display: flex; flex-direction: column; gap: 10px;">
+                 <!-- Populated dynamically -->
+               </div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; background: rgba(0,0,0,0.15); border-radius: 8px; padding: 10px;">
+               <h3 style="color: #3498db; text-align: center; margin-top: 0; font-size: 15px;">🚢 Gemi Siparişleri</h3>
+               <div id="orders-list-boat" class="orders-list" style="display: flex; flex-direction: column; gap: 10px;">
+                 <!-- Populated dynamically -->
+               </div>
+            </div>
           </div>
         </div>
       </section>
@@ -634,46 +670,26 @@
 
       <!-- Marangoz Atölyesi Modalı -->
       <section id="carpenter-modal" class="market-modal">
-        <div class="market-content" style="width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column;">
+        <div class="market-content" style="width: min(700px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column;">
           <button id="close-carpenter" class="close-button" type="button" aria-label="Marangoz Atölyesini Kapat">✕</button>
           <h2>🛠️ Marangoz Atölyesi</h2>
-          <p style="text-align: center; font-size: 12px; color: rgba(255,255,255,0.6); margin-top: -12px; margin-bottom: 15px;">Ağaçlardan topladığın odunlarla mobilya üret ve yüksek kârla sat!</p>
+          <p style="text-align: center; font-size: 12px; color: rgba(255,255,255,0.6); margin-top: -12px; margin-bottom: 15px;">Odun ve diğer malzemelerle mobilya üret!</p>
           
-          <div class="market-item" style="padding: 12px; display: flex; justify-content: space-around; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 15px;">
-            <div>🪵 Meşe Odunu: <strong id="carpenter-oak-count" style="color: var(--accent);">0</strong></div>
-            <div>🪵 Çam Odunu: <strong id="carpenter-pine-count" style="color: var(--accent);">0</strong></div>
-          </div>
+          <div style="display: flex; gap: 15px; flex-grow: 1; overflow: hidden;">
+            <!-- Sol Panel: Tarifler -->
+            <div style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding-right: 5px;">
+              <h3 style="font-size: 14px; color: var(--accent); margin-top: 0; margin-bottom: 10px;">Mobilya Planları</h3>
+              <div id="carpenter-recipes-list" class="market-items" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Dinamik doldurulacak -->
+              </div>
+            </div>
 
-          <div class="market-items" style="flex-grow: 1; overflow-y: auto; gap: 10px; display: flex; flex-direction: column;">
-            <!-- Tabure -->
-            <div class="market-item">
-              <div class="item-info">
-                <h3>Ahşap Tabure 🪑</h3>
-                <p style="font-size: 11px; margin: 4px 0;">Sade ve kullanışlı bir tabure.</p>
-                <div class="item-stats" style="color: #69d47a;">Gereksinim: 4x Meşe Odunu</div>
-                <div class="item-stats" style="color: var(--accent);">Değer: 120 🪙</div>
+            <!-- Sağ Panel: Üretim Kuyruğu -->
+            <div style="flex: 1; display: flex; flex-direction: column; background: rgba(0,0,0,0.15); border-radius: 8px; padding: 12px; border: 1px solid rgba(255,255,255,0.05);">
+              <h3 style="font-size: 14px; color: var(--accent); margin-top: 0; margin-bottom: 10px;">Üretim Tezgahı</h3>
+              <div id="carpenter-queue-list" style="display: flex; flex-direction: column; gap: 10px; flex-grow: 1;">
+                <!-- Dinamik doldurulacak -->
               </div>
-              <button id="craft-stool-btn" class="primary-button" style="margin: 0;" type="button">Üret</button>
-            </div>
-            <!-- Sehpa -->
-            <div class="market-item">
-              <div class="item-info">
-                <h3>Ahşap Sehpa ☕</h3>
-                <p style="font-size: 11px; margin: 4px 0;">Kahve fincanınızı koyabileceğiniz şık bir sehpa.</p>
-                <div class="item-stats" style="color: #69d47a;">Gereksinim: 6x Çam Odunu</div>
-                <div class="item-stats" style="color: var(--accent);">Değer: 260 🪙</div>
-              </div>
-              <button id="craft-table-btn" class="primary-button" style="margin: 0;" type="button">Üret</button>
-            </div>
-            <!-- Dolap -->
-            <div class="market-item">
-              <div class="item-info">
-                <h3>Ahşap Dolap 🚪</h3>
-                <p style="font-size: 11px; margin: 4px 0;">Eşyalarınızı saklamak için büyük ahşap dolap.</p>
-                <div class="item-stats" style="color: #69d47a;">Gereksinim: 10x Meşe + 5x Çam</div>
-                <div class="item-stats" style="color: var(--accent);">Değer: 580 🪙</div>
-              </div>
-              <button id="craft-cabinet-btn" class="primary-button" style="margin: 0;" type="button">Üret</button>
             </div>
           </div>
         </div>
