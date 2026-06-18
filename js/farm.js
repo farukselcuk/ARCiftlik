@@ -26,6 +26,7 @@ const progressBackMaterial = new THREE.MeshBasicMaterial({ color: 0x17241f, tran
 const progressFillMaterial = new THREE.MeshBasicMaterial({ color: 0x69d47a });
 const particleMaterial = new THREE.MeshStandardMaterial({ color: 0xffdd55, roughness: 0.48 });
 
+export class Farm {
   constructor(storage) {
     this.group = new THREE.Group();
     this.group.visible = false;
