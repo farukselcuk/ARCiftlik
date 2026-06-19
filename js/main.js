@@ -97,8 +97,22 @@ async function initGame(user, nickname) {
   marketStorage.checkVersion();
   bakeryStorage.checkVersion();
   
+  // ── Güncelleme Bildirimi (Bildirim Rozeti) ────────────────────
+  const CURRENT_APP_VERSION = "v1.1.0";
+  const LAST_SEEN_KEY = "arciftlik_last_seen_update";
+
+  function updatePatchNotesBadge() {
+    const badge = document.getElementById("patch-notes-badge");
+    if (!badge) return;
+    const lastSeen = localStorage.getItem(LAST_SEEN_KEY);
+    badge.style.display = (lastSeen !== CURRENT_APP_VERSION) ? "block" : "none";
+  }
+
   document.getElementById("open-patch-notes").addEventListener("click", () => {
     document.getElementById("patch-notes-modal").classList.add("is-visible");
+    // Rozeti kapat — kullanıcı güncellemeyi gördü
+    localStorage.setItem(LAST_SEEN_KEY, CURRENT_APP_VERSION);
+    updatePatchNotesBadge();
   });
   document.getElementById("close-patch-notes").addEventListener("click", () => {
     document.getElementById("patch-notes-modal").classList.remove("is-visible");
@@ -106,6 +120,9 @@ async function initGame(user, nickname) {
   document.getElementById("btn-patch-ok").addEventListener("click", () => {
     document.getElementById("patch-notes-modal").classList.remove("is-visible");
   });
+
+  // Uygulama başlarken rozeti kontrol et
+  updatePatchNotesBadge();
 
 
   // Modülleri instantiate et
@@ -2909,10 +2926,20 @@ function initBakeryUI() {
   }
 
   const tabBtns = document.querySelectorAll(".bakery-tab-btn");
+  let isBakeryTabSwitching = false;
+
   tabBtns.forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
+
+      // Geçiş sırasında yeni tıklamayı engelle
+      if (isBakeryTabSwitching) return;
+      if (btn.classList.contains("active")) return;
+      isBakeryTabSwitching = true;
+
+      // Butonları geçici olarak devre dışı bırak
       tabBtns.forEach(b => {
+        b.disabled = true;
         b.classList.remove("active");
         b.style.background = "#5c3a21";
       });
@@ -2926,6 +2953,12 @@ function initBakeryUI() {
       if (tab === "orders") {
         renderBakeryOrders();
       }
+
+      // Kilidi ve butonları 300ms sonra aç
+      setTimeout(() => {
+        tabBtns.forEach(b => { b.disabled = false; });
+        isBakeryTabSwitching = false;
+      }, 300);
     });
   });
 

@@ -204,6 +204,8 @@ export class Farm {
   }
 
   plant(index, cropId, context = 'own') {
+    // ⚠️ Ziyaret modunda ekim engelle
+    if (this.friendSaveData) return null;
     if (this.isLocked(index)) return null;
     const plot = this.plots[index];
     const crop = CROP_TYPES[cropId];
@@ -221,6 +223,8 @@ export class Farm {
   }
 
   water(index, context = 'own') {
+    // ⚠️ Ziyaret modunda sulama engelle
+    if (this.friendSaveData) return false;
     if (this.isLocked(index)) return false;
     const plot = this.plots[index];
     if (!plot || !plot.cropId || this.getProgress(plot, Date.now()) >= 1) return false;
@@ -233,6 +237,8 @@ export class Farm {
   }
 
   applyFertilizer(index, type, context = 'own') {
+    // ⚠️ Ziyaret modunda gübre engelle
+    if (this.friendSaveData) return false;
     if (this.isLocked(index)) return false;
     const plot = this.plots[index];
     if (!plot || !plot.cropId || plot.fertilizer || this.getProgress(plot, Date.now()) >= 1) return false;
@@ -261,6 +267,8 @@ export class Farm {
   }
 
   harvest(index, context = 'own') {
+    // ⚠️ Ziyaret modunda hasat engelle
+    if (this.friendSaveData) return null;
     if (this.isLocked(index)) return null;
     const plot = this.plots[index];
     const progress = this.getProgress(plot, Date.now());
@@ -578,6 +586,8 @@ export class Farm {
   }
 
   addDecoration(decoId, col, row, rotation = 0) {
+    // ⚠️ Ziyaret modunda dekorasyon ekleme engelle
+    if (this.friendSaveData) return false;
     if (!this.canPlaceDecoration(col, row)) return false;
 
     const isSapling = (decoId === 'oak_sapling' || decoId === 'pine_sapling' || decoId === 'apple_sapling' || decoId === 'orange_sapling');
@@ -624,6 +634,8 @@ export class Farm {
   }
 
   removeDecorationAt(col, row) {
+    // ⚠️ Ziyaret modunda dekorasyon kaldırma engelle
+    if (this.friendSaveData) return false;
     const idx = this.decorations.findIndex(d => d.col === col && d.row === row);
     if (idx === -1) return false;
 

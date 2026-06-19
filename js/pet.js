@@ -44,6 +44,7 @@ export class Pet {
     this.friendshipLevel = 1;
     this.friendshipXP = 0;
     this._todayInteractions = 0;
+    this._xpEarnedToday = 0;
     this._lastInteractionDate = null;
 
     this._build();
@@ -59,6 +60,10 @@ export class Pet {
       // Dostluk verilerini de yükle
       this.friendshipLevel = Number(petData.friendshipLevel) || 1;
       this.friendshipXP = Number(petData.friendshipXP) || 0;
+      // Günlük etkileşim verilerini yükle (exploit önleme)
+      this._todayInteractions = Number(petData.todayInteractions) || 0;
+      this._xpEarnedToday = Number(petData.xpEarnedToday) || 0;
+      this._lastInteractionDate = petData.lastInteractionDate || null;
       return Boolean(petData.purchased);
     }
     return false;
@@ -68,7 +73,11 @@ export class Pet {
     this._storage.saveField("pet", {
       purchased: this.purchased,
       friendshipLevel: this.friendshipLevel,
-      friendshipXP: this.friendshipXP
+      friendshipXP: this.friendshipXP,
+      // Günlük etkileşim verilerini kalıcı kaydet (exploit önleme)
+      todayInteractions: this._todayInteractions,
+      xpEarnedToday: this._xpEarnedToday,
+      lastInteractionDate: this._lastInteractionDate
     });
   }
 

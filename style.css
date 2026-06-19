@@ -1742,3 +1742,33 @@ body.is-running .tab-bar {
     max-height: calc(100vh - 220px) !important;
   }
 }
+
+/* ── Fırın Sekme Butonları Geçiş Düzeltmesi ──────────────────── */
+.bakery-tab-btn {
+  transition: opacity 0.15s ease, transform 0.1s ease, background 0.2s ease;
+}
+.bakery-tab-btn:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.bakery-tab-btn:active {
+  transform: scale(0.96);
+}
+
+/* ── Bildirim Rozeti (Megafon / Güncelleme) ───────────────────── */
+.notif-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  background: #ff3b30;
+  border-radius: 50%;
+  border: 1.5px solid #101815;
+  animation: notifPulse 1.5s infinite;
+  pointer-events: none;
+}
+@keyframes notifPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; }
+}

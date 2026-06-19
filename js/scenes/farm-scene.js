@@ -189,6 +189,12 @@ export class FarmScene {
   bindInput() {
     this.unbindInput();
 
+    // ⚠️ Ziyaret modunda ekim/hasat input'ları bağlanmaz
+    if (this.isReadOnly) {
+      this.bindReadOnlyInput();
+      return;
+    }
+
     // Unified Tapping (Tıklama)
     const cleanupTap = Input.onTap(this.renderer.domElement, (e) => {
       const rect = this.renderer.domElement.getBoundingClientRect();
@@ -203,6 +209,9 @@ export class FarmScene {
     // Unified Dragging (Sürükleme ile ekim)
     const cleanupDrag = Input.onDrag(this.renderer.domElement, {
       onStart: (point) => {
+        // ⚠️ Ziyaret modunda ekim engelle
+        if (this.isReadOnly) return;
+
         const plot = this.getPlotAtPoint(point);
         const ui = window.ui;
         const activeSeedId = this.dragSeedId || (ui && ui.tool === "crop" ? ui.selectedCrop : null);
@@ -229,6 +238,9 @@ export class FarmScene {
         }
       },
       onMove: (point) => {
+        // ⚠️ Ziyaret modunda sürükleme ile ekim engelle
+        if (this.isReadOnly) return;
+
         if (this.dragSeedId) {
           const plot = this.getPlotAtPoint(point);
           if (plot && this.farm.isEmpty(plot.index) && !this.plantedThisDrag.has(plot.index)) {
@@ -251,6 +263,41 @@ export class FarmScene {
       }
     });
     this._inputCleanups.push(cleanupDrag);
+  }
+
+  /**
+   * Ziyaret modunda sadece kamera hareketi ve ticaret postası tıklaması.
+   * Ekim/hasat/gübre/dekorasyon etkileşimi ENGELLENIR.
+   */
+  bindReadOnlyInput() {
+    this.unbindInput();
+
+    const cleanupTap = Input.onTap(this.renderer.domElement, (e) => {
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      const point = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+
+      const mouse = new THREE.Vector2(
+        (point.x / rect.width) * 2 - 1,
+        -(point.y / rect.height) * 2 + 1
+      );
+      this.raycaster.setFromCamera(mouse, this.camera);
+
+      // Ticaret postasına tıklanabilir (ziyaretçi de görebilir)
+      if (this.tradingPostGroup) {
+        const tradingPostHits = this.raycaster.intersectObjects(this.tradingPostGroup.children, true);
+        if (tradingPostHits.length > 0) {
+          window.dispatchEvent(new CustomEvent("trading-post-clicked"));
+          return;
+        }
+      }
+
+      // Diğer tüm tıklamalar bilgilendirme mesajı gösterir
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğindesiniz. Sadece izleyebilirsiniz! 👀" } }));
+    });
+    this._inputCleanups.push(cleanupTap);
   }
 
   unbindInput() {
@@ -406,23 +453,47 @@ export class FarmScene {
   }
 
   interactWithPet() {
-    const today = new Date().toDateString();
-    
-    // Günde maksimum 10 etkileşim
-    if (this.pet._lastInteractionDate !== today) {
-      this.pet._todayInteractions = 0;
-      this.pet._lastInteractionDate = today;
-    }
-
-    if (this.pet._todayInteractions >= 10) {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🐕 Shiba bugün çok yoruldu! Yarın tekrar sev." } }));
+    // ⚠️ Ziyaret modunda pet etkileşimi engelle
+    if (this.isReadOnly) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğinde pet ile etkileşim yapılamaz!" } }));
       return;
     }
 
-    this.pet._todayInteractions += 1;
-    this.pet.friendshipXP += 10;
+    const now = Date.now();
+    const PET_INTERACTION_COOLDOWN = 5000; // 5 saniye
+    const PET_DAILY_XP_CAP = 50; // Günde max kazanılabilecek XP
+    const XP_PER_INTERACTION = 5; // Etkileşim başına XP
+
+    // 1. Cooldown kontrolü — art arda tıklamayı önle
+    if (this._lastPetInteraction && (now - this._lastPetInteraction) < PET_INTERACTION_COOLDOWN) {
+      const remainSec = Math.ceil((PET_INTERACTION_COOLDOWN - (now - this._lastPetInteraction)) / 1000);
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🐕 Biraz bekle... (${remainSec}s)` } }));
+      return;
+    }
+
+    const today = new Date().toDateString();
     
-    // Seviye atlama kontrolü
+    // 2. Günlük reset
+    if (this.pet._lastInteractionDate !== today) {
+      this.pet._todayInteractions = 0;
+      this.pet._xpEarnedToday = 0;
+      this.pet._lastInteractionDate = today;
+    }
+
+    // 3. Günlük XP limiti kontrolü
+    if (this.pet._xpEarnedToday >= PET_DAILY_XP_CAP) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🐕 Shiba bugün yeterince XP kazandı! Yarın tekrar gel 🐾` } }));
+      return;
+    }
+
+    // 4. XP ver — limite kadar
+    const xpGain = Math.min(XP_PER_INTERACTION, PET_DAILY_XP_CAP - this.pet._xpEarnedToday);
+    this.pet._todayInteractions += 1;
+    this.pet._xpEarnedToday += xpGain;
+    this.pet.friendshipXP += xpGain;
+    this._lastPetInteraction = now;
+    
+    // 5. Seviye atlama kontrolü
     const nextLevelXP = this.pet.friendshipLevel * 100;
     let leveledUp = false;
     if (this.pet.friendshipXP >= nextLevelXP) {
@@ -431,18 +502,23 @@ export class FarmScene {
       leveledUp = true;
     }
     
+    // 6. Kalıcı kaydet — sayfa yenilenince de korunsun
     this.pet.save();
 
     if (leveledUp) {
       window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🎉 Shiba Dostluk Seviyesi Atladı! (Seviye ${this.pet.friendshipLevel})` } }));
-      // Dostluk seviyesi bonusları tetiklensin
       window.dispatchEvent(new CustomEvent("pet-level-up", { detail: { level: this.pet.friendshipLevel } }));
     } else {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🐕 Shiba'yı sevdin! Dostluk +10 XP (${this.pet.friendshipXP}/${nextLevelXP})` } }));
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🐕 Shiba'yı sevdin! Dostluk +${xpGain} XP (${this.pet.friendshipXP}/${nextLevelXP}) [Bugün: ${this.pet._xpEarnedToday}/${PET_DAILY_XP_CAP}]` } }));
     }
   }
 
   async interactWithTree(decoIndex) {
+    // ⚠️ Ziyaret modunda ağaç etkileşimi engelle
+    if (this.isReadOnly) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğinde ağaçlarla etkileşim yapılamaz!" } }));
+      return;
+    }
     if (this.character.busy) return;
 
     const deco = this.farm.decorations[decoIndex];
@@ -563,6 +639,13 @@ export class FarmScene {
   }
 
   plantPlot(plotIndex, cropId) {
+    // ⚠️ KRİTİK GÜVENLİK KONTROLÜ — ziyaret modunda ekim engelle
+    if (this.isReadOnly) {
+      console.warn('Ziyaret modunda ekim engellendi');
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğinde ekim yapılamaz!" } }));
+      return false;
+    }
+
     // Mevsim ekim kısıtlaması
     const seasonSystem = window.seasonSystem;
     if (seasonSystem && !seasonSystem.canPlant(cropId)) {
@@ -752,6 +835,9 @@ export class FarmScene {
     this.character.group.visible = false;
     this.pet.group.visible = false;
     
+    // ⚠️ KRİTİK: Önce mevcut input listener'ları TEMİZLE — çökme önleme
+    this.unbindInput();
+    
     // Hide active chests
     if (this.chestSystem && this.chestSystem.chests) {
       this.chestSystem.chests.forEach(c => { if (c.mesh) c.mesh.visible = false; });
@@ -760,14 +846,25 @@ export class FarmScene {
     // Düzenleme modundan çık
     this.setEditMode(false);
 
+    // Sürükleme state'ini sıfırla
+    this.dragSeedId = null;
+    this.plantedThisDrag.clear();
+    this.harvestQueue = [];
+    this.queuedPlots.clear();
+
     try {
       // Çiftlik gridini arkadaşa göre inşa et
       this.farm.rebuildGrid('friend');
       this.updateStaticMeshesPositions();
       if (this.mailboxGroup) this.mailboxGroup.visible = false;
       this.updateMaxZoomDistance();
+
+      // ⚠️ Read-only input bağla — sadece kamera ve ticaret postası
+      this.bindReadOnlyInput();
     } catch (e) {
       console.error("Arkadaş çiftliği yüklenemedi:", e);
+      // Hata durumunda kendi çiftliğe geri dön
+      this.restoreMyFarm();
     }
   }
 
@@ -776,6 +873,9 @@ export class FarmScene {
     this.farm.friendSaveData = null;
     this.character.group.visible = true;
     this.pet.group.visible = true;
+    
+    // ⚠️ KRİTİK: Önce ziyaret input'unu TEMİZLE
+    this.unbindInput();
     
     // Show active chests
     if (this.chestSystem && this.chestSystem.chests) {
@@ -786,6 +886,9 @@ export class FarmScene {
     this.updateStaticMeshesPositions();
     this.checkMailbox();
     this.updateMaxZoomDistance();
+
+    // ⚠️ Normal input'u yeniden bağla
+    this.bindInput();
   }
 
   updateMaxZoomDistance() {

@@ -1,7 +1,9 @@
+import * as THREE from "three";
+
 export class FloatingTextManager {
   constructor(camera) {
     this.camera = camera;
-    
+
     // Yüzen yazılar için ana konteyner (UI üstünde duracak)
     this.container = document.createElement("div");
     this.container.id = "floating-text-container";
@@ -14,7 +16,7 @@ export class FloatingTextManager {
     this.container.style.overflow = "hidden";
     this.container.style.zIndex = "50"; // Modal'ların altında, UI'ın üstünde
     document.body.appendChild(this.container);
-    
+
     this.texts = [];
   }
 
@@ -30,7 +32,7 @@ export class FloatingTextManager {
     el.style.transform = "translate(-50%, -50%) scale(0.5)"; // Başlangıçta küçük
     el.style.transition = "opacity 1.5s ease-in, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
     el.style.fontFamily = "'Inter', sans-serif";
-    
+
     this.container.appendChild(el);
 
     // Pop animasyonu için küçük bir gecikme
@@ -48,12 +50,12 @@ export class FloatingTextManager {
 
   update() {
     if (!this.camera) return;
-    
+
     const now = Date.now();
     for (let i = this.texts.length - 1; i >= 0; i--) {
       const item = this.texts[i];
       const age = now - item.createdAt;
-      
+
       // 1.5 saniye sonra yok et
       if (age > 1500) {
         item.el.remove();
@@ -62,11 +64,11 @@ export class FloatingTextManager {
       }
 
       // Yukarı doğru yavaşça süzülme efekti
-      item.offsetY += 0.002; 
-      
+      item.offsetY += 0.002;
+
       const vector = item.pos.clone();
-      vector.y += item.offsetY; 
-      
+      vector.y += item.offsetY;
+
       // 3D pozisyonu 2D ekrana (CSS koordinatlarına) çevirme
       vector.project(this.camera);
 
