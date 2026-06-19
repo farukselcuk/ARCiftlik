@@ -54,18 +54,27 @@ let merchantSystem = null;
 
 // Göç / Bildirim kontrolü
 let _migrationNotice = null;
+let _gameInitialized = false; // Çift çağrılma koruması
 globalStorage.onMigrationNotice = (oldVer, newVer) => {
   _migrationNotice = `Güncelleme geldi (v${oldVer} → v${newVer}), verileriniz güncellendi!`;
 };
 
 // Oyun ilklendirme fonksiyonu (Firebase Auth başarılı olunca çağrılır)
 async function initGame(user, nickname) {
+  // Çift çağrılma koruması — onAuthStateChanged birden fazla tetiklenebilir
+  if (_gameInitialized) {
+    console.warn("[GameInit] initGame zaten çağrılmış, atlanıyor.");
+    return;
+  }
+  _gameInitialized = true;
   console.log(`[GameInit] Oyuncu verileri yükleniyor: ${nickname} (${user.email})`);
   
   // Yükleme ekranı durumunu göster
   document.querySelector("#auth-loading").style.display = "flex";
   document.querySelector("#auth-forms").style.display = "none";
   document.querySelector("#welcome-panel").style.display = "none";
+
+  try { // Ana try-catch — herhangi bir hata durumunda kullanıcıyı takılı bırakmamak için
   
   // Firestore'dan kayıtlı verileri çek ve in-memory cache'e yaz
   let saveData = null;
@@ -356,6 +365,48 @@ async function initGame(user, nickname) {
   // Yükleme bitti, karşılama ekranını göster
   document.querySelector("#auth-loading").style.display = "none";
   document.querySelector("#welcome-panel").style.display = "flex";
+
+  } catch (err) {
+    // Kritik hata — kullanıcıyı loading ekranında takılı bırakma
+    console.error("[GameInit] KRİTİK HATA — oyun ilklendirme başarısız:", err);
+    _gameInitialized = false; // Tekrar denenebilsin
+    
+    document.querySelector("#auth-loading").style.display = "none";
+    document.querySelector("#auth-forms").style.display = "none";
+    document.querySelector("#welcome-panel").style.display = "none";
+
+    // Hata mesajını göster ve yeniden deneme butonu sun
+    const startPanel = document.querySelector("#start-panel");
+    if (startPanel) {
+      const errorDiv = document.createElement("div");
+      errorDiv.id = "init-error-panel";
+      errorDiv.style.cssText = "text-align:center;padding:20px;";
+      errorDiv.innerHTML = `
+        <h2 style="color:#ff6b6b;margin-bottom:12px;">⚠️ Yükleme Hatası</h2>
+        <p style="color:rgba(255,255,255,0.7);margin-bottom:16px;font-size:13px;">Oyun verileri yüklenirken bir hata oluştu.<br>Lütfen tekrar deneyin.</p>
+        <button id="retry-init-btn" class="primary-button" style="margin-bottom:10px;" type="button">Tekrar Dene 🔄</button>
+        <button id="reset-and-retry-btn" class="secondary-button" type="button">Verileri Sıfırla ve Başlat 🗑️</button>
+      `;
+      
+      // Mevcut hata paneli varsa kaldır
+      const existing = document.querySelector("#init-error-panel");
+      if (existing) existing.remove();
+      
+      startPanel.querySelector(".start-content").appendChild(errorDiv);
+      
+      document.querySelector("#retry-init-btn").addEventListener("click", () => {
+        errorDiv.remove();
+        initGame(user, nickname);
+      });
+      
+      document.querySelector("#reset-and-retry-btn").addEventListener("click", () => {
+        // In-memory cache'i temizle ve varsayılanlarla başlat
+        window.gameInMemoryCache = {};
+        errorDiv.remove();
+        initGame(user, nickname);
+      });
+    }
+  }
 }
 
 // Performans Modu Ayarlama
@@ -2445,9 +2496,14 @@ setupAuthUI();
 firebaseService.initFirebase((user, nickname) => {
   if (user) {
     // Oturum açık, oyunu ilklendir
-    initGame(user, nickname);
+    initGame(user, nickname).catch(err => {
+      console.error("[FirebaseCallback] initGame hatası:", err);
+      // Hata durumunda loading spinner'ı kapat
+      document.querySelector("#auth-loading").style.display = "none";
+    });
   } else {
     // Oturum kapalı, login formunu göster ve bellek temizliği yap
+    _gameInitialized = false; // Tekrar giriş yapılabilsin
     document.querySelector("#welcome-panel").style.display = "none";
     document.querySelector("#auth-loading").style.display = "none";
     document.querySelector("#auth-forms").style.display = "block";
@@ -3604,7 +3660,7 @@ function getRipeCropsCount() {
   let ripeCount = 0;
   for (const plot of farmInstance.plots) {
     if (plot.cropId) {
-      const progress = farmInstance.getCropProgress(plot);
+      const progress = farmInstance.getProgress(plot, Date.now());
       if (progress >= 1 && progress < 2) {
         ripeCount++;
       }
