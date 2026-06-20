@@ -279,7 +279,7 @@ body.is-scanning .surface-hint {
 }
 
 .toast.is-visible {
-  animation: floatToast 900ms ease-out forwards;
+  animation: floatToast 1530ms ease-out forwards;
 }
 
 /* Sidebar Tohum Paneli */
