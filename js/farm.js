@@ -276,7 +276,7 @@ export class Farm {
 
     const crop = CROP_TYPES[plot.cropId];
     const fertilizer = plot.fertilizer;
-    const isWithered = (progress === 2);
+    const isWithered = (progress >= 2);
 
     this.createHarvestParticles(plot.group.position);
     this.clearPlot(plot);
@@ -298,6 +298,7 @@ export class Farm {
 
     const crop = CROP_TYPES[plot.cropId];
     const progress = this.getProgress(plot, Date.now());
+    if (progress >= 2) return `${crop.name} çürüdü (Temizlemek için dokun)!`;
     if (progress >= 1) return `${crop.name} hasada hazır!`;
     let desc = `${crop.name} %${Math.round(progress * 100)} büyüdü`;
     if (plot.fertilizer) {

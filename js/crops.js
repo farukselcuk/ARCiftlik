@@ -162,7 +162,7 @@ function getSegments(type) {
 }
 
 export function getStage(progress) {
-  if (progress === 2) return 4;
+  if (progress >= 2) return 4;
   if (progress >= 1) return 3;
   if (progress >= 0.5) return 2;
   return 1;

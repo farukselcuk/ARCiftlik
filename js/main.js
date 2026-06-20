@@ -686,15 +686,17 @@ function bindSeedCards() {
         return;
       }
 
+      const hasSeedInInventory = window.inventory && window.inventory.getCount(cropId) > 0;
+
       // Mevsim kısıtlaması kontrolü
-      if (!seasonSystem.canPlant(cropId)) {
+      if (!hasSeedInInventory && !seasonSystem.canPlant(cropId)) {
         const season = seasonSystem.getCurrentSeason();
         ui.showToast(`❌ ${season.icon} ${season.name} mevsiminde bu ürün ekilemez!`);
         return;
       }
       
       // Para kontrolü
-      if (ui.coins < crop.cost) {
+      if (!hasSeedInInventory && ui.coins < crop.cost) {
         ui.showToast("🪙 Yetersiz Altın!");
         return;
       }
@@ -728,12 +730,24 @@ window.addEventListener("open-seed-picker", (e) => {
   cards.forEach(card => {
     const cropId = card.dataset.crop;
     const crop = CROP_TYPES[cropId];
+    const count = inventory ? inventory.getCount(cropId) : 0;
     
-    // Coin yetersizliği
-    if (ui.coins < crop.cost) {
-      card.classList.add("insufficient-funds");
-    } else {
-      card.classList.remove("insufficient-funds");
+    // Coin yetersizliği veya envanter gösterimi
+    const costSpan = card.querySelector(".seed-cost");
+    if (costSpan) {
+      if (count > 0) {
+        costSpan.textContent = `Envanter: ${count} 🌱`;
+        costSpan.style.color = "#4CAF50";
+        card.classList.remove("insufficient-funds");
+      } else {
+        costSpan.textContent = `${crop.cost} 🪙`;
+        costSpan.style.color = "";
+        if (ui.coins < crop.cost) {
+          card.classList.add("insufficient-funds");
+        } else {
+          card.classList.remove("insufficient-funds");
+        }
+      }
     }
     
     // Seviye kilitleri
@@ -4145,7 +4159,7 @@ function updatePetModalUI() {
   const petInventoryFoodEl = document.querySelector("#pet-modal-inventory-food");
 
   // Envanterdeki mama sayısını çek
-  const foodCount = inventory ? inventory.count("pet_food") : 0;
+  const foodCount = inventory ? inventory.getCount("pet_food") : 0;
   if (petInventoryFoodEl) {
     petInventoryFoodEl.textContent = `Stoktaki Mama: 🍖 ${foodCount}`;
   }
