@@ -1738,7 +1738,8 @@ body.is-running .tab-bar {
   transform: translateY(-2px);
 }
 @media (max-width: 600px) {
-  #bakery-panel {
+  #bakery-panel,
+  #carpenter-panel {
     top: auto !important;
     bottom: 80px !important;
     left: 8px !important;
@@ -1878,4 +1879,33 @@ body.is-running .tab-bar {
   font-size: 10px;
   font-weight: bold;
   border: 1.5px solid white;
+}
+
+/* ── PERSISTENT LEFT SIDE SCENE PANELS (BAKERY & CARPENTER) ── */
+.app-panel {
+  position: absolute;
+  top: 180px; /* Below top-bar stats on desktop */
+  left: 16px;
+  z-index: 100;
+  width: min(380px, calc(100vw - 32px));
+  border-radius: 12px;
+  border-top-left-radius: 40px;
+  border-top-right-radius: 40px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 5px 15px rgba(255, 100, 0, 0.05);
+  padding: 20px;
+  max-height: calc(100vh - 270px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+#bakery-panel {
+  background: linear-gradient(180deg, #4a3424 0%, #2c1e16 100%);
+  border: 3px solid #8b4513;
+  color: #f5deb3;
+}
+
+#carpenter-panel {
+  background: linear-gradient(180deg, #422d1b 0%, #291c10 100%);
+  border: 3px solid #6b4423;
+  color: #f5deb3;
 }

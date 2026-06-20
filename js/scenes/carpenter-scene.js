@@ -92,10 +92,10 @@ export class CarpenterScene {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.12;
     this.controls.minDistance = 0.8;
-    this.controls.maxDistance = 4.0;
+    this.controls.maxDistance = 8.0;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.05;
 
-    this.camera.position.set(0, 1.6, 3.8);
+    this.camera.position.set(0, 2.2, 5.2);
     this.controls.update();
   }
 

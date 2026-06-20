@@ -1130,8 +1130,8 @@ if (goToFarmHudBtn) {
   });
 }
 
-// Carpenter Modal
-const carpenterPanel = document.querySelector("#carpenter-modal");
+// Carpenter Panel
+const carpenterPanel = document.querySelector("#carpenter-panel");
 const openCarpenterBtn = document.querySelector("#open-carpenter-btn");
 const closeCarpenterBtn = document.querySelector("#close-carpenter");
 
@@ -1139,12 +1139,16 @@ if (openCarpenterBtn) {
   openCarpenterBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     if (audioSystem) audioSystem.playPlace();
-    updateCarpenterUI();
-    carpenterPanel.classList.add("is-visible");
+    if (sceneManager) {
+      sceneManager.switchScene("carpenter");
+      document.querySelectorAll(".tab-button").forEach(t => {
+        t.classList.toggle("active", t.dataset.scene === "carpenter");
+      });
+    }
   });
 }
 
-if (closeCarpenterBtn) {
+if (closeCarpenterBtn && carpenterPanel) {
   closeCarpenterBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     if (audioSystem) audioSystem.playPlace();
@@ -2329,6 +2333,9 @@ function render() {
   if (typeof updateBakeryUI === "function") {
     updateBakeryUI();
   }
+  if (typeof updateCarpenterUI === "function") {
+    updateCarpenterUI();
+  }
   
   if (realNow - lastHudBadgeUpdateTime > 1000) {
     updateRipeCropsBadge();
@@ -3401,6 +3408,10 @@ document.addEventListener("scene-changed", (e) => {
   if (bakeryPanel) {
     bakeryPanel.style.display = scene === "bakery" ? "block" : "none";
   }
+  const carpenterPanel = document.querySelector("#carpenter-panel");
+  if (carpenterPanel) {
+    carpenterPanel.style.display = scene === "carpenter" ? "block" : "none";
+  }
 });
 
 // ── MARANGOZ ATÖLYESİ VE ÜRETİM KUYRUĞU ──────────────────────────
@@ -3481,11 +3492,220 @@ function collectFurniture(queueId) {
   updateWarehouseUI();
 }
 
+const CARPENTER_SELL_ITEMS_GLOBAL = {
+  wooden_chair: { name: "Ahşap Sandalye", price: 120, emoji: "🪑" },
+  wooden_table: { name: "Ahşap Masa", price: 260, emoji: "🪚" },
+  bookshelf: { name: "Kitaplık", price: 400, emoji: "📚" },
+  cabinet: { name: "Dolap", price: 580, emoji: "🚪" },
+  wooden_bed: { name: "Ahşap Yatak", price: 800, emoji: "🛏️" },
+  rocking_chair: { name: "Sallanan Sandalye", price: 320, emoji: "🪑" }
+};
+
+let carpenterOrders = [];
+let lastCarpenterOrderSpawnTime = 0;
+let lastCarpenterOrdersRenderTime = 0;
+
+function loadCarpenterOrders() {
+  const saved = globalStorage.loadField("carpenterOrders");
+  if (Array.isArray(saved)) {
+    carpenterOrders = saved;
+  }
+}
+
+function saveCarpenterOrders() {
+  globalStorage.saveField("carpenterOrders", carpenterOrders);
+}
+
+function generateCarpenterOrder() {
+  const possibleItems = Object.keys(CARPENTER_RECIPES);
+  const orderItemsCount = Math.random() < 0.8 ? 1 : 2;
+  const reqs = {};
+  let totalCoins = 0;
+  let totalXP = 0;
+  
+  const shuffled = [...possibleItems].sort(() => 0.5 - Math.random());
+  for (let i = 0; i < orderItemsCount; i++) {
+    const item = shuffled[i];
+    const qty = 1;
+    reqs[item] = qty;
+    
+    const sellInfo = CARPENTER_SELL_ITEMS_GLOBAL[item] || { price: 100 };
+    const recipe = CARPENTER_RECIPES[item] || { rewardXP: 20 };
+    totalCoins += Math.round(sellInfo.price * qty * 1.35);
+    totalXP += Math.round(recipe.rewardXP * qty * 1.25);
+  }
+  
+  return {
+    id: "c_order_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+    reqs,
+    rewardCoins: totalCoins,
+    rewardXP: totalXP,
+    expiresAt: Date.now() + 15 * 60 * 1000
+  };
+}
+
+function trySpawnCarpenterOrder() {
+  const now = Date.now();
+  let changed = false;
+  
+  const unexpiredOrders = carpenterOrders.filter(order => {
+    if (order.expiresAt && now > order.expiresAt) {
+      changed = true;
+      return false;
+    }
+    return true;
+  });
+  
+  if (changed) {
+    carpenterOrders = unexpiredOrders;
+  }
+  
+  if (carpenterOrders.length < 4) {
+    if (carpenterOrders.length === 0 || (now - lastCarpenterOrderSpawnTime >= 6 * 60 * 1000)) {
+      carpenterOrders.push(generateCarpenterOrder());
+      lastCarpenterOrderSpawnTime = now;
+      changed = true;
+    }
+  }
+  
+  if (changed) {
+    saveCarpenterOrders();
+  }
+}
+
+function renderCarpenterOrders() {
+  const container = document.querySelector("#carpenter-orders-list");
+  if (!container) return;
+  
+  if (carpenterOrders.length === 0) {
+    container.innerHTML = `<p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; margin-top: 15px;">Şu an yeni sipariş yok. Birazdan yenisi gelecek.</p>`;
+    return;
+  }
+  
+  const now = Date.now();
+  container.innerHTML = "";
+  
+  carpenterOrders.forEach((order, index) => {
+    const remaining = Math.max(0, order.expiresAt - now);
+    const m = Math.floor(remaining / 60000);
+    const s = Math.floor((remaining % 60000) / 1000);
+    const remainingStr = remaining > 0 ? `${m}d ${s}s` : "Süresi Doldu";
+    
+    let canDeliver = true;
+    const reqsHTMLParts = [];
+    
+    for (const [itemId, qty] of Object.entries(order.reqs)) {
+      const has = inventory ? inventory.getCount(itemId) : 0;
+      if (has < qty) canDeliver = false;
+      const color = has >= qty ? "#2ecc71" : "#e74c3c";
+      const itemInfo = CARPENTER_SELL_ITEMS_GLOBAL[itemId] || { emoji: "📦", name: itemId };
+      reqsHTMLParts.push(`
+        <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); color: ${color};">
+          ${itemInfo.emoji} ${itemInfo.name}: ${has}/${qty}
+        </span>
+      `);
+    }
+    
+    const orderCard = document.createElement("div");
+    orderCard.id = `carpenter-order-${order.id}`;
+    orderCard.className = "order-item";
+    orderCard.style.padding = "10px";
+    orderCard.style.gap = "8px";
+    orderCard.style.transition = "all 0.3s ease";
+    
+    orderCard.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 12px; font-weight: bold; color: var(--accent);">🛠️ Mobilya Talebi</span>
+        <span style="font-size: 11px; color: #ff6b6b;" class="timer-display">${remainingStr}</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0;">
+        ${reqsHTMLParts.join("")}
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+        <div style="font-size: 12px; font-weight: bold; color: #fff;">
+          Kazanç: <span style="color: #ffd700;">+${order.rewardCoins} 🪙</span> | <span style="color: #3498db;">+${order.rewardXP} XP</span>
+        </div>
+        <button class="primary-button deliver-btn" type="button" style="margin:0; width:auto; padding: 4px 10px; min-height: 28px; font-size: 11px; background: ${canDeliver ? 'linear-gradient(180deg, #2ecc71, #27ae60)' : '#7f8c8d'};" ${!canDeliver ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+          Teslim Et
+        </button>
+      </div>
+    `;
+    
+    if (canDeliver) {
+      orderCard.querySelector(".deliver-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        deliverCarpenterOrder(order.id);
+      });
+    }
+    
+    container.appendChild(orderCard);
+  });
+}
+
+function deliverCarpenterOrder(orderId) {
+  const index = carpenterOrders.findIndex(o => o.id === orderId);
+  if (index === -1) return;
+  
+  const order = carpenterOrders[index];
+  
+  let canDeliver = true;
+  for (const [itemId, qty] of Object.entries(order.reqs)) {
+    if ((inventory ? inventory.getCount(itemId) : 0) < qty) {
+      canDeliver = false;
+      break;
+    }
+  }
+  
+  if (!canDeliver) {
+    ui.showToast("❌ Sipariş için gerekli mobilyalar yeterli değil!");
+    return;
+  }
+  
+  for (const [itemId, qty] of Object.entries(order.reqs)) {
+    inventory.deduct(itemId, qty);
+  }
+  
+  ui.updateCoins(order.rewardCoins);
+  character.addXP(order.rewardXP, "deliver_carpenter_order");
+  
+  ui.showToast(`🚚 Sipariş teslim edildi! +${order.rewardCoins} 🪙 +${order.rewardXP} XP`);
+  
+  if (audioSystem) {
+    audioSystem.playCoin();
+    audioSystem.playHarvest();
+  }
+  
+  const card = document.querySelector(`#carpenter-order-${orderId}`);
+  if (card) {
+    card.style.transform = "scale(0.8)";
+    card.style.opacity = "0";
+    setTimeout(() => {
+      carpenterOrders.splice(index, 1);
+      saveCarpenterOrders();
+      renderCarpenterOrders();
+      updateWarehouseUI();
+    }, 300);
+  } else {
+    carpenterOrders.splice(index, 1);
+    saveCarpenterOrders();
+    renderCarpenterOrders();
+    updateWarehouseUI();
+  }
+}
+
 window.updateCarpenterUI = function() {
   const recipesListEl = document.querySelector("#carpenter-recipes-list");
   const queueListEl = document.querySelector("#carpenter-queue-list");
   
   if (!recipesListEl || !queueListEl) return;
+
+  trySpawnCarpenterOrder();
+
+  const ordersTab = document.querySelector("#carpenter-orders-tab");
+  if (ordersTab && ordersTab.style.display === "block" && Date.now() - lastCarpenterOrdersRenderTime > 1000) {
+    renderCarpenterOrders();
+    lastCarpenterOrdersRenderTime = Date.now();
+  }
 
   const INGREDIENT_NAMES = {
     wood: "Odun 🪵",
@@ -3544,6 +3764,11 @@ window.updateCarpenterUI = function() {
   if (carpenterQueue.length === 0) {
     queueListEl.innerHTML = `<p style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; margin-top: 20px;">Kuyruk boş.</p>`;
   } else {
+    let isWorking = carpenterQueue.some(item => !item.isReady);
+    if (sceneManager && sceneManager.scenes.carpenter) {
+      sceneManager.scenes.carpenter.setProducing(isWorking);
+    }
+
     carpenterQueue.forEach(qItem => {
       const recipe = CARPENTER_RECIPES[qItem.recipeId];
       if (!recipe) return;
@@ -3592,12 +3817,41 @@ window.updateCarpenterUI = function() {
 };
 
 loadCarpenterState();
-setInterval(() => {
-  const modal = document.querySelector("#carpenter-modal");
-  if (modal && modal.classList.contains("is-visible")) {
-    updateCarpenterUI();
-  }
-}, 1000);
+loadCarpenterOrders();
+
+// Tab event listeners setup
+const carpenterTabBtns = document.querySelectorAll(".carpenter-tab-btn");
+let isCarpenterTabSwitching = false;
+
+carpenterTabBtns.forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (isCarpenterTabSwitching) return;
+    if (btn.classList.contains("active")) return;
+    isCarpenterTabSwitching = true;
+
+    carpenterTabBtns.forEach(b => {
+      b.disabled = true;
+      b.classList.remove("active");
+      b.style.background = "#5c3a21";
+    });
+    btn.classList.add("active");
+    btn.style.background = "#e67e22";
+    
+    const tab = btn.dataset.tab;
+    document.querySelector("#carpenter-recipes-tab").style.display = tab === "recipes" ? "block" : "none";
+    document.querySelector("#carpenter-orders-tab").style.display = tab === "orders" ? "block" : "none";
+    
+    if (tab === "orders") {
+      renderCarpenterOrders();
+    }
+
+    setTimeout(() => {
+      carpenterTabBtns.forEach(b => { b.disabled = false; });
+      isCarpenterTabSwitching = false;
+    }, 300);
+  });
+});
 
 // --- SEYYAR SATICI (MERCHANT) ---
 const merchantBtn = document.querySelector("#open-merchant-btn");
