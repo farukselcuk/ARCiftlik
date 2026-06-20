@@ -357,12 +357,12 @@ export class BarnScene {
     }
 
     if (name === "cat") {
-      this.interactWithCat();
+      window.dispatchEvent(new CustomEvent("open-pet-info-modal", { detail: { petType: "cat", petRef: null } }));
       return;
     }
 
     if (name === "shiba-companion") {
-      this.interactWithShiba();
+      window.dispatchEvent(new CustomEvent("open-pet-info-modal", { detail: { petType: "shiba", petRef: null } }));
       return;
     }
   }

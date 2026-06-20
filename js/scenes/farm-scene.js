@@ -420,7 +420,7 @@ export class FarmScene {
             window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Shiba bir altın buldu! +15 🪙" } }));
           }
         } else {
-          this.interactWithPet(this.shibaPet);
+          window.dispatchEvent(new CustomEvent("open-pet-info-modal", { detail: { petType: "shiba", petRef: this.shibaPet } }));
         }
         return;
       }
@@ -436,7 +436,7 @@ export class FarmScene {
             window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Kedi bir altın buldu! +15 🪙" } }));
           }
         } else {
-          this.interactWithPet(this.catPet);
+          window.dispatchEvent(new CustomEvent("open-pet-info-modal", { detail: { petType: "cat", petRef: this.catPet } }));
         }
         return;
       }
@@ -864,6 +864,7 @@ export class FarmScene {
 
   loadFriendData(friendSaveData) {
     this.isReadOnly = true;
+    window.isVisitingFriend = true; // ⚠️ Ziyaretçi modu kilitleniyor
     this.farm.friendSaveData = friendSaveData;
     this.character.group.visible = false;
     this.shibaPet.group.visible = false;
@@ -904,6 +905,7 @@ export class FarmScene {
 
   restoreMyFarm() {
     this.isReadOnly = false;
+    window.isVisitingFriend = false; // ⚠️ Ziyaretçi modu kaldırılıyor
     
     // ⚠️ KRİTİK: Önce ziyaret input'unu TEMİZLE
     this.unbindInput();

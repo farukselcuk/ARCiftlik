@@ -235,6 +235,10 @@ export class GameStorage {
   }
 
   saveAll(state) {
+    if (window.isVisitingFriend) {
+      console.warn(`[GameStorage] Ziyaretçi modunda saveAll engellendi (${this.namespace})`);
+      return;
+    }
     this._write(this.storageKey, JSON.stringify(state));
   }
 
@@ -249,6 +253,10 @@ export class GameStorage {
   }
 
   saveField(fieldName, value) {
+    if (window.isVisitingFriend) {
+      console.warn(`[GameStorage] Ziyaretçi modunda saveField engellendi (${this.namespace})`);
+      return;
+    }
     const state = this.loadAll();
     if (!state) return;
     state[fieldName] = value;

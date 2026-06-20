@@ -4106,3 +4106,139 @@ function updateRipeCropsBadge() {
     badge.style.display = "none";
   }
 }
+
+// --- EVCİL HAYVAN BİLGİ & BESLEME PANELİ (PET INFO POPUP) ---
+const petInfoModal = document.querySelector("#pet-info-modal");
+const closePetInfoBtn = document.querySelector("#close-pet-info");
+const petModalFeedBtn = document.querySelector("#pet-modal-feed-btn");
+
+let currentSelectedPetType = null; // 'shiba' | 'cat'
+let currentSelectedPetRef = null;  // scene içindeki pet referansı
+
+if (closePetInfoBtn) {
+  closePetInfoBtn.addEventListener("click", () => {
+    if (petInfoModal) petInfoModal.style.display = "none";
+  });
+}
+
+// Global Custom Event ile pet tıklamasını yakala ve popup aç
+window.addEventListener("open-pet-info-modal", (e) => {
+  const { petType, petRef } = e.detail;
+  currentSelectedPetType = petType;
+  currentSelectedPetRef = petRef;
+  
+  if (petInfoModal) {
+    petInfoModal.style.display = "flex";
+    updatePetModalUI();
+  }
+});
+
+function updatePetModalUI() {
+  if (!petInfoModal) return;
+  
+  const petNameEl = document.querySelector("#pet-name");
+  const petAvatarEl = document.querySelector("#pet-avatar");
+  const petLevelEl = document.querySelector("#pet-modal-level");
+  const petXpTextEl = document.querySelector("#pet-modal-xp-text");
+  const petXpBarEl = document.querySelector("#pet-modal-xp-bar");
+  const petFeedsLeftEl = document.querySelector("#pet-modal-feeds-left");
+  const petInventoryFoodEl = document.querySelector("#pet-modal-inventory-food");
+
+  // Envanterdeki mama sayısını çek
+  const foodCount = inventory ? inventory.count("pet_food") : 0;
+  if (petInventoryFoodEl) {
+    petInventoryFoodEl.textContent = `Stoktaki Mama: 🍖 ${foodCount}`;
+  }
+
+  // Pet verilerini çek
+  let level = 1;
+  let xp = 0;
+  let todayFeeds = 0;
+  let petName = "Evcil Hayvan";
+  let petAvatar = "🐾";
+
+  if (currentSelectedPetType === "shiba") {
+    petName = "Shiba Inu";
+    petAvatar = "🐕";
+    
+    if (currentSelectedPetRef) {
+      level = currentSelectedPetRef.friendshipLevel;
+      xp = currentSelectedPetRef.friendshipXP;
+      todayFeeds = currentSelectedPetRef._todayFeeds;
+    } else {
+      // BarnScene vb. durumlarda storage'dan çek
+      const petData = globalStorage.loadField("pet") || {};
+      level = petData.friendshipLevel || 1;
+      xp = petData.friendshipXP || 0;
+      todayFeeds = petData.todayFeeds || 0;
+      
+      const today = new Date().toDateString();
+      if (petData.lastFeedDate !== today) {
+        todayFeeds = 0;
+      }
+    }
+  } else if (currentSelectedPetType === "cat") {
+    petName = "Kedi Yoldaş";
+    petAvatar = "🐱";
+    
+    if (currentSelectedPetRef) {
+      level = currentSelectedPetRef.friendshipLevel;
+      xp = currentSelectedPetRef.friendshipXP;
+      todayFeeds = currentSelectedPetRef._todayFeeds;
+    } else {
+      const petData = globalStorage.loadField("pet") || {};
+      level = petData.catFriendshipLevel || 1;
+      xp = petData.catFriendshipXP || 0;
+      todayFeeds = petData.catTodayFeeds || 0;
+      
+      const today = new Date().toDateString();
+      if (petData.catLastFeedDate !== today) {
+        todayFeeds = 0;
+      }
+    }
+  }
+
+  if (petNameEl) petNameEl.textContent = petName;
+  if (petAvatarEl) petAvatarEl.textContent = petAvatar;
+  if (petLevelEl) petLevelEl.textContent = level;
+  
+  const nextLevelXP = level * 100;
+  if (petXpTextEl) petXpTextEl.textContent = `${xp} / ${nextLevelXP}`;
+  
+  const pct = Math.min(100, (xp / nextLevelXP) * 100);
+  if (petXpBarEl) petXpBarEl.style.width = `${pct}%`;
+  
+  if (petFeedsLeftEl) {
+    petFeedsLeftEl.textContent = `Bugün Besleme: ${todayFeeds} / 3`;
+    petFeedsLeftEl.style.color = todayFeeds >= 3 ? "#ff4d4d" : "#ffd700";
+  }
+}
+
+if (petModalFeedBtn) {
+  petModalFeedBtn.addEventListener("click", () => {
+    // Besleme olayını tetikle
+    if (sceneManager.activeSceneKey === "farm") {
+      const farmScene = sceneManager.scenes.farm;
+      if (farmScene) {
+        const petInstance = currentSelectedPetType === "shiba" ? farmScene.shibaPet : farmScene.catPet;
+        if (petInstance) {
+          // Besle
+          farmScene.interactWithPet(petInstance);
+          updatePetModalUI();
+          updateWarehouseUI(); // mama envanterde azaldığı için depo arayüzünü de tazele
+        }
+      }
+    } else if (sceneManager.activeSceneKey === "barn") {
+      const barnScene = sceneManager.scenes.barn;
+      if (barnScene) {
+        if (currentSelectedPetType === "shiba") {
+          barnScene.interactWithShiba();
+        } else if (currentSelectedPetType === "cat") {
+          barnScene.interactWithCat();
+        }
+        updatePetModalUI();
+        updateWarehouseUI();
+      }
+    }
+  });
+}
