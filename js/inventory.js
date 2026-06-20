@@ -43,11 +43,24 @@ export class Inventory {
           fertilizer_super: Number(saved.fertilizer_super) || 0,
           fertilizer_golden: Number(saved.fertilizer_golden) || 0,
 
+          wood: Number(saved.wood) || 0,
           wood_oak: Number(saved.wood_oak) || 0,
           wood_pine: Number(saved.wood_pine) || 0,
+          nails: Number(saved.nails) || 0,
+          varnish: Number(saved.varnish) || 0,
+          hinges: Number(saved.hinges) || 0,
+          
           furniture_stool: Number(saved.furniture_stool) || 0,
           furniture_table: Number(saved.furniture_table) || 0,
           furniture_cabinet: Number(saved.furniture_cabinet) || 0,
+          
+          wooden_chair: Number(saved.wooden_chair) || 0,
+          wooden_table: Number(saved.wooden_table) || 0,
+          bookshelf: Number(saved.bookshelf) || 0,
+          cabinet: Number(saved.cabinet) || 0,
+          wooden_bed: Number(saved.wooden_bed) || 0,
+          rocking_chair: Number(saved.rocking_chair) || 0,
+          
           flour: Number(saved.flour) || 0,
           bread: Number(saved.bread) || 0,
           strawberry_cake: Number(saved.strawberry_cake) || 0,
@@ -61,8 +74,9 @@ export class Inventory {
       apple: 0, orange: 0,
       golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0,
       fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0,
-      wood_oak: 0, wood_pine: 0,
+      wood: 0, wood_oak: 0, wood_pine: 0, nails: 0, varnish: 0, hinges: 0,
       furniture_stool: 0, furniture_table: 0, furniture_cabinet: 0,
+      wooden_chair: 0, wooden_table: 0, bookshelf: 0, cabinet: 0, wooden_bed: 0, rocking_chair: 0,
       flour: 0, bread: 0, strawberry_cake: 0, blueberry_pie: 0, carrot_cake: 0
     };
   }
@@ -102,8 +116,9 @@ export class Inventory {
       apple: 0, orange: 0,
       golden_wheat: 0, golden_corn: 0, golden_carrot: 0, golden_strawberry: 0, golden_potato: 0, golden_sunflower: 0, golden_tomato: 0, golden_pumpkin: 0, golden_blueberry: 0,
       fertilizer_basic: 0, fertilizer_super: 0, fertilizer_golden: 0,
-      wood_oak: 0, wood_pine: 0,
+      wood: 0, wood_oak: 0, wood_pine: 0, nails: 0, varnish: 0, hinges: 0,
       furniture_stool: 0, furniture_table: 0, furniture_cabinet: 0,
+      wooden_chair: 0, wooden_table: 0, bookshelf: 0, cabinet: 0, wooden_bed: 0, rocking_chair: 0,
       flour: 0, bread: 0, strawberry_cake: 0, blueberry_pie: 0, carrot_cake: 0
     };
     this.save();

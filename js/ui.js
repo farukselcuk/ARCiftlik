@@ -113,6 +113,14 @@ export class GameUI {
     this.waterButton?.classList.toggle("is-selected", this.tool === "water");
   }
 
+  getCoins() {
+    return this.coins;
+  }
+
+  getGems() {
+    return this.gems;
+  }
+
   updateCoins(delta) {
     this.coins = Math.max(0, this.coins + delta);
     this.coinEl.textContent = this.coins.toString();

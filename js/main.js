@@ -107,7 +107,7 @@ async function initGame(user, nickname) {
   bakeryStorage.checkVersion();
   
   // ── Güncelleme Bildirimi (Bildirim Rozeti) ────────────────────
-  const CURRENT_APP_VERSION = "v1.1.0";
+  const CURRENT_APP_VERSION = "v1.2.0";
   const LAST_SEEN_KEY = "arciftlik_last_seen_update";
 
   function updatePatchNotesBadge() {
@@ -550,6 +550,13 @@ window.addEventListener("toast", (e) => {
 window.addEventListener("open-market-panel", () => {
   updateMarketUI();
   document.querySelector("#market-panel").classList.add("is-visible");
+});
+
+window.addEventListener("open-merchant-modal", () => {
+  if (merchantSystem && merchantSystem.state.active) {
+    document.querySelector("#merchant-modal").classList.add("is-visible");
+    updateMerchantUI();
+  }
 });
 
 // Old merchant logic removed to fix duplicate declaration
@@ -1543,14 +1550,23 @@ function updateWarehouseUI() {
     wood_pine: { name: "🪵 Çam Odunu", price: 15 },
     apple: { name: "🍎 Elma", price: 25 },
     orange: { name: "🍊 Portakal", price: 30 },
+    wooden_chair: { name: "🪑 Ahşap Sandalye", price: 120 },
+    wooden_table: { name: "🪚 Ahşap Masa", price: 260 },
+    bookshelf: { name: "📚 Kitaplık", price: 400 },
+    cabinet: { name: "🚪 Dolap", price: 580 },
+    wooden_bed: { name: "🛏️ Ahşap Yatak", price: 800 },
+    rocking_chair: { name: "🪑 Sallanan Sandalye", price: 420 },
     furniture_stool: { name: "🪑 Ahşap Tabure", price: 120 },
     furniture_table: { name: "☕ Ahşap Sehpa", price: 260 },
     furniture_cabinet: { name: "🚪 Ahşap Dolap", price: 580 }
   };
 
+  const ALWAYS_SHOW_FORESTRY = ["wood_oak", "wood_pine", "apple", "orange"];
+
   Object.keys(FORESTRY_ITEMS).forEach((itemId) => {
     const count = inventory.getCount(itemId);
-    if (count <= 0) return;
+    const isAlwaysShow = ALWAYS_SHOW_FORESTRY.includes(itemId);
+    if (count <= 0 && !isAlwaysShow) return;
     const price = FORESTRY_ITEMS[itemId].price;
     const name = FORESTRY_ITEMS[itemId].name;
     
@@ -1561,7 +1577,7 @@ function updateWarehouseUI() {
         <span class="sell-name">${name}</span>
         <span class="sell-count">Stok: ${count}</span>
       </div>
-      <button class="sell-button" type="button">
+      <button class="sell-button" type="button" ${count <= 0 ? "disabled" : ""}>
         Sat: ${price} 🪙
       </button>
     `;
@@ -1572,7 +1588,7 @@ function updateWarehouseUI() {
       if (inventory.deduct(itemId, 1)) {
         ui.updateCoins(price);
         ui.showToast(`1 adet ${name} satıldı!`);
-        character.addXP(itemId.startsWith("furniture_") ? 15 : 2, "sell_wood_furniture");
+        character.addXP(itemId.startsWith("wooden_") || itemId === "bookshelf" || itemId === "cabinet" || itemId === "rocking_chair" || itemId.startsWith("furniture_") ? 15 : 2, "sell_wood_furniture");
         updateWarehouseUI();
       }
     });
@@ -3416,12 +3432,12 @@ document.addEventListener("scene-changed", (e) => {
 
 // ── MARANGOZ ATÖLYESİ VE ÜRETİM KUYRUĞU ──────────────────────────
 const CARPENTER_RECIPES = {
-  wooden_chair: { id: "wooden_chair", name: "Ahşap Sandalye", duration: 30000, reqs: { wood: 3, nails: 2 }, rewardXP: 15, emoji: "🪑" },
-  wooden_table: { id: "wooden_table", name: "Ahşap Masa", duration: 60000, reqs: { wood: 5, nails: 4, varnish: 1 }, rewardXP: 30, emoji: "🪚" },
-  bookshelf: { id: "bookshelf", name: "Kitaplık", duration: 90000, reqs: { wood: 8, nails: 6, varnish: 2 }, rewardXP: 50, emoji: "📚" },
-  cabinet: { id: "cabinet", name: "Dolap", duration: 120000, reqs: { wood: 10, hinges: 2, nails: 8 }, rewardXP: 70, emoji: "🚪" },
-  wooden_bed: { id: "wooden_bed", name: "Ahşap Yatak", duration: 150000, reqs: { wood: 12, nails: 10, varnish: 2 }, rewardXP: 90, emoji: "🛏️" },
-  rocking_chair: { id: "rocking_chair", name: "Sallanan Sandalye", duration: 80000, reqs: { wood: 6, nails: 4, varnish: 1 }, rewardXP: 45, emoji: "🪑" }
+  wooden_chair: { id: "wooden_chair", name: "Ahşap Sandalye", duration: 30000, reqs: { wood_oak: 3, nails: 2 }, rewardXP: 15, emoji: "🪑" },
+  wooden_table: { id: "wooden_table", name: "Ahşap Masa", duration: 60000, reqs: { wood_oak: 5, nails: 4, varnish: 1 }, rewardXP: 30, emoji: "🪚" },
+  bookshelf: { id: "bookshelf", name: "Kitaplık", duration: 90000, reqs: { wood_pine: 8, nails: 6, varnish: 2 }, rewardXP: 50, emoji: "📚" },
+  cabinet: { id: "cabinet", name: "Dolap", duration: 120000, reqs: { wood_oak: 10, hinges: 2, nails: 8 }, rewardXP: 70, emoji: "🚪" },
+  wooden_bed: { id: "wooden_bed", name: "Ahşap Yatak", duration: 150000, reqs: { wood_oak: 6, wood_pine: 6, nails: 10, varnish: 2 }, rewardXP: 90, emoji: "🛏️" },
+  rocking_chair: { id: "rocking_chair", name: "Sallanan Sandalye", duration: 80000, reqs: { wood_pine: 6, nails: 4, varnish: 1 }, rewardXP: 45, emoji: "🪑" }
 };
 
 let carpenterQueue = [];
@@ -3862,6 +3878,10 @@ const merchantTimerEl = document.querySelector("#merchant-timer");
 
 if (merchantBtn) {
   merchantBtn.addEventListener("click", () => {
+    if (sceneManager.activeSceneKey !== "market") {
+      ui.showToast("🎒 Seyyar Satıcı pazar yerinde! Alışveriş yapmak için Market sekmesine git.");
+      return;
+    }
     merchantModal.classList.add("is-visible");
     updateMerchantUI();
   });

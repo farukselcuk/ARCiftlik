@@ -1809,7 +1809,7 @@ body.is-running .tab-bar {
 /* ── DAHA FAZLA AÇILIR PANELİ ── */
 .more-panel {
   position: fixed;
-  top: 96px; /* below top bar */
+  top: calc(108px + env(safe-area-inset-top, 0px)); /* below top bar */
   right: 12px;
   background: rgba(15, 30, 20, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.12);

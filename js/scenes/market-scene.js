@@ -28,6 +28,7 @@ export class MarketScene {
 
     this.marketGroup = new THREE.Group();
     this.merchantGroup = null;
+    this.wanderingMerchantGroup = null;
 
     this._inputCleanups = [];
     this._time = 0;
@@ -68,6 +69,9 @@ export class MarketScene {
 
     // Tüccar/Satıcı karakter
     this.createMerchant();
+
+    // Seyyar Satıcı karakter (aktifken tezgah yanında görünür)
+    this.createWanderingMerchant();
 
     // Dekoratif fıçılar
     this.createBarrels();
@@ -208,6 +212,55 @@ export class MarketScene {
     this.marketGroup.add(this.merchantGroup);
   }
 
+  createWanderingMerchant() {
+    this.wanderingMerchantGroup = new THREE.Group();
+    this.wanderingMerchantGroup.name = "wandering-merchant";
+    // Tezgahın sol tarafına, biraz önüne konumlandıralım (Tezgah X: 0, Z: 0.1 konumunda)
+    this.wanderingMerchantGroup.position.set(-0.48, 0.08, 0.22);
+    this.wanderingMerchantGroup.rotation.y = Math.PI / 4; // İçeriye doğru hafif dönük baksın
+    this.wanderingMerchantGroup.visible = false; // Başlangıçta gizli
+
+    // Gövde (Mor/Mürdüm ceketli seyyar satıcı)
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.1), mat(0x5c3d75));
+    body.position.y = 0.11;
+    body.castShadow = true;
+    this.wanderingMerchantGroup.add(body);
+
+    // Koca bir sırt çantası (Seyyah heybesi)
+    const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.16, 0.08), mat(0x52341b));
+    backpack.position.set(0, 0.11, -0.07);
+    backpack.castShadow = true;
+    this.wanderingMerchantGroup.add(backpack);
+
+    // Kafa
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.11), mat(0xffdbac)); // Ten rengi
+    head.position.set(0, 0.26, 0);
+    head.castShadow = true;
+    this.wanderingMerchantGroup.add(head);
+
+    // Hasır Şapka (Kırmızı şeritli)
+    const hatBase = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.015, 0.18), mat(0xd4af37));
+    hatBase.position.set(0, 0.32, 0);
+    this.wanderingMerchantGroup.add(hatBase);
+
+    const hatTop = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.1), mat(0xc0392b));
+    hatTop.position.set(0, 0.35, 0);
+    this.wanderingMerchantGroup.add(hatTop);
+
+    // Kollar
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.14, 0.04), mat(0x5c3d75));
+    armL.position.set(-0.09, 0.13, 0.01);
+    armL.rotation.x = 0.2;
+    this.wanderingMerchantGroup.add(armL);
+
+    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.14, 0.04), mat(0x5c3d75));
+    armR.position.set(0.09, 0.13, 0.01);
+    armR.rotation.x = 0.2;
+    this.wanderingMerchantGroup.add(armR);
+
+    this.marketGroup.add(this.wanderingMerchantGroup);
+  }
+
   createBarrels() {
     // Dekoratif fıçılar (Ahşap silindirler)
     const barrelGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.22, 10);
@@ -269,7 +322,42 @@ export class MarketScene {
     const hits = this.raycaster.intersectObjects(this.marketGroup.children, true);
     if (hits.length === 0) return;
 
-    // Herhangi bir market elemanına veya tüccara tıklandıysa satıcıyı tetikle
+    // Seyyar Satıcıya tıklandı mı kontrolü
+    let isWanderingMerchantHit = false;
+    if (window.merchantSystem && window.merchantSystem.state.active && this.wanderingMerchantGroup) {
+      for (const hit of hits) {
+        let obj = hit.object;
+        while (obj && obj !== this.scene) {
+          if (obj.name === "wandering-merchant") {
+            isWanderingMerchantHit = true;
+            break;
+          }
+          obj = obj.parent;
+        }
+        if (isWanderingMerchantHit) break;
+      }
+    }
+
+    if (isWanderingMerchantHit) {
+      window.dispatchEvent(new CustomEvent("open-merchant-modal"));
+      if (this.wanderingMerchantGroup) {
+        const startY = this.wanderingMerchantGroup.position.y;
+        let t = 0;
+        const anim = () => {
+          t += 0.2;
+          this.wanderingMerchantGroup.position.y = startY + Math.sin(t) * 0.08;
+          if (t < Math.PI) {
+            requestAnimationFrame(anim);
+          } else {
+            this.wanderingMerchantGroup.position.y = startY;
+          }
+        };
+        anim();
+      }
+      return;
+    }
+
+    // Herhangi bir market elemanına veya tüccara tıklandıysa normal pazar panelini tetikle
     window.dispatchEvent(new CustomEvent("open-market-panel"));
     window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Hoş geldiniz! Çiftliğinizi büyütmek için ürünlerimize göz atın! 🛒" } }));
 
@@ -297,10 +385,23 @@ export class MarketScene {
 
     // Tüccarın hafifçe nefes alıp başını oynatması animasyonu
     if (this.merchantGroup) {
-      const head = this.merchantGroup.children.find(c => c.position.y > 0.2);
+      const head = this.merchantGroup.children.find(c => c.position.y > 0.2 && c.geometry.type === "BoxGeometry" && c.material.color.getHex() === 0xffdbac);
       if (head) {
         head.rotation.y = Math.sin(this._time * 0.6) * 0.08;
         head.position.y = 0.26 + Math.sin(this._time * 1.2) * 0.003;
+      }
+    }
+
+    // Seyyar satıcı görünürlük ve baş oynatma animasyonu
+    const isMerchantActive = Boolean(window.merchantSystem && window.merchantSystem.state.active);
+    if (this.wanderingMerchantGroup) {
+      this.wanderingMerchantGroup.visible = isMerchantActive;
+      if (isMerchantActive) {
+        const head = this.wanderingMerchantGroup.children.find(c => c.position.y > 0.2 && c.geometry.type === "BoxGeometry" && c.material.color.getHex() === 0xffdbac);
+        if (head) {
+          head.rotation.y = Math.sin(this._time * 0.7 + 1) * 0.09;
+          head.position.y = 0.26 + Math.sin(this._time * 1.4) * 0.0035;
+        }
       }
     }
   }
