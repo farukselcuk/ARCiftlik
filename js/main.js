@@ -1074,18 +1074,22 @@ const marketPanel = document.querySelector("#market-panel");
 const openMarketBtn = document.querySelector("#open-market");
 const closeMarketBtn = document.querySelector("#close-market");
 
-openMarketBtn.addEventListener("click", (e) => {
-  e.stopPropagation();
-  if (audioSystem) audioSystem.playPlace();
-  updateMarketUI();
-  marketPanel.classList.add("is-visible");
-});
+if (openMarketBtn) {
+  openMarketBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audioSystem) audioSystem.playPlace();
+    updateMarketUI();
+    marketPanel.classList.add("is-visible");
+  });
+}
 
-closeMarketBtn.addEventListener("click", (e) => {
-  e.stopPropagation();
-  if (audioSystem) audioSystem.playPlace();
-  marketPanel.classList.remove("is-visible");
-});
+if (closeMarketBtn) {
+  closeMarketBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audioSystem) audioSystem.playPlace();
+    marketPanel.classList.remove("is-visible");
+  });
+}
 
 // Market Categories tab buttons init
 const marketCatBtns = document.querySelectorAll(".market-category-btn");
