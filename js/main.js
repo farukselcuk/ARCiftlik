@@ -268,9 +268,7 @@ async function initGame(user, nickname) {
   
   // Tohum seçim kutusu ve badges güncelle
   populateSeedPicker();
-  updateWeatherUI();
-  updateSeasonUI();
-  updateTimeUI();
+  updateTopStrip();
   
   if (merchantSystem && merchantSystem.state.active) {
     document.querySelector("#open-merchant-btn").style.display = "inline-flex";
@@ -279,11 +277,9 @@ async function initGame(user, nickname) {
   // Periyodik UI güncellemeleri (saat ve sıcaklık - dakikada bir senkron)
   const msUntilNextMinute = 60000 - (Date.now() % 60000);
   setTimeout(() => {
-    updateTimeUI();
-    updateWeatherUI();
+    updateTopStrip();
     setInterval(() => {
-      updateTimeUI();
-      updateWeatherUI();
+      updateTopStrip();
       if (merchantSystem) merchantSystem.checkSpawn();
     }, 60000);
   }, msUntilNextMinute);
@@ -869,53 +865,31 @@ function checkDailyLogin() {
 
 // Hava Durumu ve Mevsim UI Güncellemeleri (initGame içinde bağlanıyor)
 
-function updateWeatherUI() {
-  if (!weatherSystem || !seasonSystem) return;
+function updateTopStrip() {
+  if (!weatherSystem || !seasonSystem || !dayNightCycle) return;
   const seasonId = seasonSystem.current;
-  const detail = weatherSystem.getDetailedWeather(seasonId);
-  
-  const iconEl = document.querySelector("#weather-icon");
-  const tempEl = document.querySelector("#weather-temp");
-  const nameEl = document.querySelector("#weather-name");
-  
-  if (iconEl) iconEl.textContent = detail.icon;
-  if (tempEl) tempEl.textContent = detail.tempFormatted;
-  if (nameEl) nameEl.textContent = detail.name;
-  
-  // Widget'e title tooltip
-  const widget = document.querySelector("#weather-widget");
-  if (widget) widget.title = `${detail.name} — ${detail.tempFormatted}`;
-}
-
-function updateSeasonUI() {
-  if (!seasonSystem) return;
-  const info = seasonSystem.getSeasonWithMonth();
-  
-  const iconEl = document.querySelector("#season-icon");
-  const nameEl = document.querySelector("#season-name");
-  
-  if (iconEl) iconEl.textContent = info.season.icon;
-  if (nameEl) nameEl.textContent = info.season.name;
-  
-  // Widget'e title tooltip
-  const widget = document.querySelector("#season-widget");
-  if (widget) widget.title = `${info.season.icon} ${info.season.name}`;
-}
-
-function updateTimeUI() {
-  if (!dayNightCycle) return;
-  const phase = dayNightCycle.getPhase();
+  const seasonInfo = SeasonSystem.SEASONS[seasonId];
+  const weatherDetail = weatherSystem.getDetailedWeather(seasonId);
   const time = dayNightCycle.getFormattedTime();
   
-  const phaseIconEl = document.querySelector("#time-phase-icon");
-  const timeDisplayEl = document.querySelector("#time-display");
+  const stripSeason = document.getElementById("strip-season");
+  const stripWeather = document.getElementById("strip-weather");
+  const stripTime = document.getElementById("strip-time");
   
-  if (phaseIconEl) phaseIconEl.textContent = phase.icon;
-  if (timeDisplayEl) timeDisplayEl.textContent = time;
-  
-  const widget = document.querySelector("#time-widget");
-  if (widget) widget.title = `${phase.name} — ${time}`;
+  if (stripSeason) {
+    stripSeason.textContent = `${seasonInfo?.icon || "🌸"} ${seasonInfo?.name || "Mevsim"}`;
+  }
+  if (stripWeather) {
+    stripWeather.textContent = `${weatherDetail.icon || "☀️"} ${weatherDetail.tempFormatted} ${weatherDetail.name || "Güneşli"}`;
+  }
+  if (stripTime) {
+    stripTime.textContent = time;
+  }
 }
+
+function updateWeatherUI() { updateTopStrip(); }
+function updateSeasonUI() { updateTopStrip(); }
+function updateTimeUI() { updateTopStrip(); }
 
 // Sandık açılma ödülleri (initGame içinde bağlanıyor)
 
@@ -1216,6 +1190,49 @@ closeSettingsBtn.addEventListener("click", (e) => {
   if (audioSystem) audioSystem.playPlace();
   settingsPanel.classList.remove("is-visible");
 });
+
+// Daha Fazla Paneli Aç/Kapat
+const morePanel = document.querySelector("#more-panel");
+const btnMore = document.querySelector("#btn-more");
+let morePanelOpen = false;
+
+if (btnMore && morePanel) {
+  btnMore.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audioSystem) audioSystem.playPlace();
+    morePanelOpen = !morePanelOpen;
+    morePanel.style.display = morePanelOpen ? "flex" : "none";
+    btnMore.classList.toggle("is-selected", morePanelOpen);
+  });
+
+  // Panel dışına tıklanınca kapansın
+  document.addEventListener("click", (e) => {
+    if (morePanelOpen && !morePanel.contains(e.target) && !btnMore.contains(e.target)) {
+      morePanelOpen = false;
+      morePanel.style.display = "none";
+      btnMore.classList.remove("is-selected");
+    }
+  });
+
+  // Panel içindeki herhangi bir butona tıklandığında paneli kapat
+  morePanel.querySelectorAll(".more-item").forEach(item => {
+    item.addEventListener("click", () => {
+      morePanelOpen = false;
+      morePanel.style.display = "none";
+      btnMore.classList.remove("is-selected");
+    });
+  });
+}
+
+// Profil Butonu -> Ayarları açar
+const openProfileBtn = document.querySelector("#open-profile-btn");
+if (openProfileBtn && settingsPanel) {
+  openProfileBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audioSystem) audioSystem.playPlace();
+    settingsPanel.classList.add("is-visible");
+  });
+}
 
 const qualityBtns = document.querySelectorAll(".quality-btn");
 qualityBtns.forEach(btn => {

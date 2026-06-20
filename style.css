@@ -117,7 +117,7 @@ body.no-camera #camera-feed {
 }
 
 .top-bar {
-  top: calc(12px + env(safe-area-inset-top, 0px));
+  top: calc(36px + env(safe-area-inset-top, 0px));
   left: 12px;
   right: 12px;
   display: flex;
@@ -286,7 +286,7 @@ body.is-scanning .surface-hint {
 .bottom-bar {
   position: fixed;
   left: 0;
-  top: 130px;
+  top: 180px;
   bottom: 110px;
   width: 86px;
   z-index: 900;
@@ -1519,9 +1519,13 @@ body.is-running .tab-bar {
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 8px !important;
-    top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+    top: calc(32px + env(safe-area-inset-top, 0px)) !important;
     left: 8px !important;
     right: 8px !important;
+  }
+
+  .bottom-bar {
+    top: 140px !important;
   }
 
   .stats-panel {
@@ -1771,4 +1775,107 @@ body.is-running .tab-bar {
 @keyframes notifPulse {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.15); opacity: 0.8; }
+}
+
+/* ── MEVSİM VE HAVA DURUMU ŞERİDİ ── */
+.season-weather-strip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background: rgba(18, 28, 24, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  z-index: 999;
+  pointer-events: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.season-weather-strip .divider {
+  opacity: 0.4;
+  font-weight: 400;
+}
+
+/* ── DAHA FAZLA AÇILIR PANELİ ── */
+.more-panel {
+  position: fixed;
+  top: 96px; /* below top bar */
+  right: 12px;
+  background: rgba(15, 30, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 998; /* Under top-bar buttons but on top of other content */
+  min-width: 150px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: morePanelSlide 0.18s ease;
+}
+
+@keyframes morePanelSlide {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  color: #e0f0e0;
+  font-size: 13px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+  width: 100%;
+}
+
+.more-item:hover, .more-item:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.more-item-icon {
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+}
+
+/* Water tool custom selected styling inside more item */
+#water-tool.is-selected {
+  background: rgba(59, 156, 242, 0.2) !important;
+  border: 1px solid rgba(59, 156, 242, 0.5) !important;
+  color: #a5dbf7 !important;
+}
+
+/* Ripe badge style inside more-item */
+.ripe-badge {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  background: #e74c3c;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: bold;
+  border: 1.5px solid white;
 }

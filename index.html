@@ -24,6 +24,14 @@
     <main id="app">
       <div id="scene-root"></div>
 
+      <div class="season-weather-strip">
+        <span id="strip-season">🌸 İlkbahar</span>
+        <span class="divider">•</span>
+        <span id="strip-weather">☀️ 14°C Güneşli</span>
+        <span class="divider">•</span>
+        <span id="strip-time">12:00</span>
+      </div>
+
       <div class="top-bar">
         <div class="stats-panel">
           <div class="coins" aria-live="polite">
@@ -41,43 +49,54 @@
               <div class="xp-bar-fill" id="xp-bar-fill" style="width: 0%"></div>
             </div>
           </div>
-          <div class="env-widgets">
-            <div class="env-widget season-widget" id="season-widget" title="Mevsim Bilgisi">
-              <span class="env-widget-icon" id="season-icon">🌸</span>
-              <div class="env-widget-info">
-                <span class="env-widget-label" id="season-name" style="font-size: 14px;">İlkbahar</span>
-              </div>
-            </div>
-            <div class="env-widget time-widget" id="time-widget" title="Saat">
-              <span class="env-widget-icon" id="time-phase-icon">☀️</span>
-              <span class="env-widget-label" id="time-display">12:00</span>
-            </div>
-            <div class="env-widget weather-widget" id="weather-widget" title="Hava Durumu">
-              <span class="env-widget-icon" id="weather-icon">☀️</span>
-              <div class="env-widget-info">
-                <span class="env-widget-label" id="weather-temp">25°C</span>
-                <span class="env-widget-sub" id="weather-name">Güneşli</span>
-              </div>
-            </div>
-          </div>
         </div>
         <div class="control-buttons">
-          <button id="water-tool" class="icon-button" type="button" aria-label="Water tool" title="Sula">💧</button>
-          <button id="open-expand-btn" class="icon-button" type="button" aria-label="Expand farm" title="Tarlayı Genişlet">⊞</button>
-          <button id="open-leaderboard" class="icon-button" type="button" aria-label="Open leaderboard" title="Liderlik Tablosu">🏆</button>
-          <button id="open-orders" class="icon-button" type="button" aria-label="Open orders" title="Siparişler">📋</button>
-          <button id="open-market" class="icon-button" type="button" aria-label="Open market" title="Market">🛒</button>
-          <button id="go-to-farm-hud-btn" class="icon-button" type="button" aria-label="Go to farm" title="Çiftliğe Git" style="position: relative;">🌱<span id="ripe-crops-badge" style="position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; border-radius: 50%; padding: 2px 6px; font-size: 10px; font-weight: bold; border: 1.5px solid white; display: none;">0</span></button>
-
-          <button id="open-decorations" class="icon-button" type="button" aria-label="Open decorations" title="Süslemeler">🧱</button>
-          <button id="open-social" class="icon-button" type="button" aria-label="Open social" title="Sosyal">👥</button>
-          <button id="open-settings-btn" class="icon-button" type="button" aria-label="Settings" title="Ayarlar">⚙️</button>
+          <!-- Seyyar Satıcı -->
+          <button id="open-merchant-btn" class="icon-button" type="button" aria-label="Wandering Merchant" title="Seyyar Satıcı" style="display: none; background: #8b5a2b;">🎒</button>
+          
+          <!-- Daha Fazla -->
+          <button id="btn-more" class="icon-button" type="button" title="Daha Fazla">⋯</button>
+          
+          <!-- Megafon -->
           <div style="position: relative; display: inline-block;">
             <button id="open-patch-notes" class="icon-button" type="button" aria-label="Patch Notes" title="Güncellemeler">📢</button>
             <span id="patch-notes-badge" class="notif-badge" style="display:none;"></span>
           </div>
-          <button id="open-merchant-btn" class="icon-button" type="button" aria-label="Wandering Merchant" title="Seyyar Satıcı" style="display: none; background: #8b5a2b;">🎒</button>
+          
+          <!-- Ayarlar -->
+          <button id="open-settings-btn" class="icon-button" type="button" aria-label="Settings" title="Ayarlar">⚙️</button>
+          
+          <!-- Profil -->
+          <button id="open-profile-btn" class="icon-button avatar-btn" type="button" title="Profil">
+            <span style="font-size: 20px;">👨‍🌾</span>
+          </button>
         </div>
+      </div>
+
+      <!-- Daha Fazla Açılır Paneli -->
+      <div class="more-panel" id="more-panel" style="display: none;">
+        <button id="water-tool" class="more-item" type="button" title="Sula">
+          <span class="more-item-icon">💧</span> <span>Sulama</span>
+        </button>
+        <button id="open-expand-btn" class="more-item" type="button" title="Tarlayı Genişlet">
+          <span class="more-item-icon">⊞</span> <span>Genişlet</span>
+        </button>
+        <button id="open-leaderboard" class="more-item" type="button" title="Liderlik Tablosu">
+          <span class="more-item-icon">🏆</span> <span>Sıralama</span>
+        </button>
+        <button id="open-orders" class="more-item" type="button" title="Siparişler">
+          <span class="more-item-icon">📋</span> <span>Siparişler</span>
+        </button>
+        <button id="go-to-farm-hud-btn" class="more-item" type="button" title="Çiftliğe Git" style="position: relative;">
+          <span class="more-item-icon">🌱</span> <span>Çiftliğe Git</span>
+          <span id="ripe-crops-badge" class="ripe-badge" style="display: none;">0</span>
+        </button>
+        <button id="open-decorations" class="more-item" type="button" title="Süslemeler">
+          <span class="more-item-icon">🧱</span> <span>Süslemeler</span>
+        </button>
+        <button id="open-social" class="more-item" type="button" title="Sosyal">
+          <span class="more-item-icon">👥</span> <span>Arkadaşlar</span>
+        </button>
       </div>
 
       <div class="aim-dot" aria-hidden="true"></div>
