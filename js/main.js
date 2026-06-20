@@ -254,6 +254,10 @@ async function initGame(user, nickname) {
       ui.updateCoins(loot.amount);
       ui.showToast(`🎁 Sandıktan ${loot.amount} altın çıktı!`);
       if (audioSystem) audioSystem.playCoin();
+    } else if (loot.type === "gem") {
+      ui.updateGems(loot.amount);
+      ui.showToast(`🎁 Sandıktan ${loot.amount} elmas çıktı! 💎`);
+      if (audioSystem) audioSystem.playCoin();
     } else if (loot.type === "seed" && loot.cropId) {
       inventory.add(loot.cropId, loot.amount || 1);
       ui.showToast(`🎁 Sandıktan ${loot.cropId} tohumu çıktı!`);
@@ -995,7 +999,8 @@ if (resetFarmBtn) {
     if (sceneManager && sceneManager.activeSceneKey === "farm") {
       sceneManager.scenes.farm.farm.resetUnlockedPlots();
       sceneManager.scenes.farm.character.reset();
-      sceneManager.scenes.farm.pet.reset();
+      sceneManager.scenes.farm.shibaPet.reset();
+      sceneManager.scenes.farm.catPet.reset();
       if (inventory) inventory.reset();
       if (orders) orders.reset();
       if (ui) ui.refillIfStuck();
@@ -1024,6 +1029,24 @@ const MARKET_CATALOG = [
     desc: "Tarlada dolaşan ve altın kazandıran şirin shiba köpeği.",
     category: "pet",
     price: 150,
+    unlockLevel: 1
+  },
+  {
+    id: "cat_pet",
+    name: "Kedi Yoldaş 🐱",
+    desc: "Tarlada dolaşan sevimli gri kedi yoldaşı.",
+    category: "pet",
+    price: 15,
+    currency: "gem",
+    unlockLevel: 1
+  },
+  {
+    id: "pet_skin_gold",
+    name: "Altın Shiba Skini ✨",
+    desc: "Shiba yoldaşınız için premium altın görünümü.",
+    category: "pet",
+    price: 10,
+    currency: "gem",
     unlockLevel: 1
   },
   {
@@ -1164,6 +1187,11 @@ if (closeCarpenterBtn && carpenterPanel) {
 }
 
 window.addEventListener("open-warehouse-panel", () => {
+  const farmScene = sceneManager?.scenes?.farm;
+  if (farmScene && farmScene.isReadOnly) {
+    ui.showToast("Arkadaş çiftliğindeyken depoyu açamazsınız! 🚫");
+    return;
+  }
   if (audioSystem) audioSystem.playPlace();
   updateWarehouseUI();
   warehousePanel.classList.add("is-visible");
@@ -1361,8 +1389,8 @@ function updateMarketUI() {
     }
     
     let desc = item.desc;
-    let buttonText = `Satın Al (${item.price} 🪙)`;
-    let disabled = ui.coins < item.price;
+    let buttonText = item.currency === "gem" ? `Satın Al (${item.price} 💎)` : `Satın Al (${item.price} 🪙)`;
+    let disabled = item.currency === "gem" ? ui.gems < item.price : ui.coins < item.price;
     let statusText = "";
     
     if (isLocked) {
@@ -1387,6 +1415,32 @@ function updateMarketUI() {
           statusText = "Satın Alınmadı";
           buttonText = `Satın Al (${item.price} 🪙)`;
           disabled = ui.coins < item.price;
+        }
+      } else if (item.id === "cat_pet") {
+        const petData = globalStorage.loadField("pet") || {};
+        if (petData.catPurchased) {
+          statusText = `Sahip Olundu (Lv ${petData.friendshipLevel || 1})`;
+          buttonText = "Satın Alındı 🐱";
+          disabled = true;
+        } else {
+          statusText = "Satın Alınmadı";
+          buttonText = `Satın Al (${item.price} 💎)`;
+          disabled = ui.gems < item.price;
+        }
+      } else if (item.id === "pet_skin_gold") {
+        const petData = globalStorage.loadField("pet") || {};
+        if (petData.activeSkin === "gold") {
+          statusText = "Aktif Görünüm";
+          buttonText = "Kullanılıyor ✨";
+          disabled = true;
+        } else if (petData.goldSkinPurchased) {
+          statusText = "Sahip Olundu";
+          buttonText = "Uygula ✨";
+          disabled = false;
+        } else {
+          statusText = "Satın Alınmadı";
+          buttonText = `Satın Al (${item.price} 💎)`;
+          disabled = ui.gems < item.price;
         }
       } else if (item.category === "fertilizer") {
         const owned = inventory ? inventory.getCount(item.id) : 0;
@@ -1425,6 +1479,11 @@ function updateMarketUI() {
 function handleMarketPurchase(itemId) {
   if (!sceneManager || !ui) return;
   
+  if (sceneManager.scenes.farm.isReadOnly) {
+    ui.showToast("Arkadaş çiftliğindeyken satın alma yapamazsınız! 🚫");
+    return;
+  }
+  
   if (itemId === "plot") {
     const count = sceneManager.scenes.farm.farm.unlockedPlotsCount;
     const plotPrice = 50 * (count - 1);
@@ -1443,18 +1502,68 @@ function handleMarketPurchase(itemId) {
     const petCost = 150;
     if (ui.coins >= petCost) {
       ui.updateCoins(-petCost);
-      globalStorage.saveField("pet", {
-        purchased: true,
-        friendshipLevel: 1,
-        friendshipXP: 0
-      });
-      sceneManager.scenes.farm.pet.purchase();
+      const petData = globalStorage.loadField("pet") || {};
+      petData.purchased = true;
+      petData.friendshipLevel = petData.friendshipLevel || 1;
+      petData.friendshipXP = petData.friendshipXP || 0;
+      globalStorage.saveField("pet", petData);
+      
+      sceneManager.scenes.farm.shibaPet.purchase();
       sceneManager.scenes.barn.shibaGroup.visible = true;
       if (audioSystem) audioSystem.playPlace();
       ui.showToast("Shiba yoldaşınız açıldı! 🐕");
       updateMarketUI();
     } else {
       ui.showToast("🪙 Yetersiz Altın!");
+    }
+  } else if (itemId === "cat_pet") {
+    const petCost = 15;
+    const petData = globalStorage.loadField("pet") || {};
+    if (petData.catPurchased) {
+      ui.showToast("Zaten Kedi Yoldaş'a sahipsiniz!");
+      return;
+    }
+    if (ui.gems >= petCost) {
+      ui.updateGems(-petCost);
+      petData.catPurchased = true;
+      globalStorage.saveField("pet", petData);
+      
+      sceneManager.scenes.farm.catPet.purchase();
+      if (audioSystem) audioSystem.playPlace();
+      ui.showToast("Kedi yoldaşınız açıldı! 🐱");
+      updateMarketUI();
+    } else {
+      ui.showToast("💎 Yetersiz Elmas!");
+    }
+  } else if (itemId === "pet_skin_gold") {
+    const skinCost = 10;
+    const petData = globalStorage.loadField("pet") || {};
+    if (petData.activeSkin === "gold") {
+      ui.showToast("Zaten Altın Shiba skinine sahipsiniz!");
+      return;
+    }
+    if (petData.goldSkinPurchased) {
+      petData.activeSkin = "gold";
+      globalStorage.saveField("pet", petData);
+      
+      sceneManager.scenes.farm.shibaPet.setSkin("gold");
+      if (audioSystem) audioSystem.playPlace();
+      ui.showToast("Altın Shiba skini uygulandı! ✨");
+      updateMarketUI();
+      return;
+    }
+    if (ui.gems >= skinCost) {
+      ui.updateGems(-skinCost);
+      petData.goldSkinPurchased = true;
+      petData.activeSkin = "gold";
+      globalStorage.saveField("pet", petData);
+      
+      sceneManager.scenes.farm.shibaPet.setSkin("gold");
+      if (audioSystem) audioSystem.playPlace();
+      ui.showToast("Altın Shiba skini satın alındı ve uygulandı! ✨");
+      updateMarketUI();
+    } else {
+      ui.showToast("💎 Yetersiz Elmas!");
     }
   } else if (itemId.startsWith("fertilizer_") || itemId === "nails" || itemId === "varnish" || itemId === "hinges") {
     const catalogItem = MARKET_CATALOG.find(item => item.id === itemId);
@@ -1717,7 +1826,7 @@ function updateOrdersUI() {
     itemEl.innerHTML = `
       <div class="order-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <span class="order-villager" style="font-weight: bold; font-size: 13px;">${order.isBoat ? "🚢" : "👤"} ${order.villager}</span>
-        <span class="order-reward" style="font-size: 13px; color: var(--accent); font-weight: bold;">🪙 ${order.reward}</span>
+        <span class="order-reward" style="font-size: 13px; color: var(--accent); font-weight: bold;">🪙 ${order.reward} ${order.gemReward ? `+ 💎 ${order.gemReward}` : ""}</span>
       </div>
       <div class="order-reqs" style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px;">
         ${reqsHtml}
@@ -1740,10 +1849,22 @@ function updateOrdersUI() {
     
     itemEl.querySelector(".order-complete-btn").addEventListener("click", (e) => {
       e.stopPropagation();
+      const farmScene = sceneManager.scenes.farm;
+      if (farmScene && farmScene.isReadOnly) {
+        ui.showToast("Arkadaş çiftliğindeyken sipariş tamamlayamazsınız! 🚫");
+        return;
+      }
       const fulfilled = orders.fulfill(order.id, inventory);
       if (fulfilled) {
         ui.updateCoins(fulfilled.reward);
-        ui.showToast(`${fulfilled.isBoat ? '🚢 Gemi yola çıktı!' : '📦 Sipariş tamamlandı!'} +${fulfilled.reward} 🪙`);
+        if (fulfilled.gemReward) {
+          ui.updateGems(fulfilled.gemReward);
+        }
+        let msg = `${fulfilled.isBoat ? '🚢 Gemi yola çıktı!' : '📦 Sipariş tamamlandı!'} +${fulfilled.reward} 🪙`;
+        if (fulfilled.gemReward) {
+          msg += ` & +${fulfilled.gemReward} 💎`;
+        }
+        ui.showToast(msg);
         if (audioSystem) audioSystem.playCoin();
         character.addXP(fulfilled.isBoat ? 25 : 15, "order");
         updateOrdersUI();
@@ -1758,6 +1879,11 @@ function updateOrdersUI() {
 document.querySelectorAll(".buy-fertilizer-btn").forEach(btn => {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
+    const farmScene = sceneManager?.scenes?.farm;
+    if (farmScene && farmScene.isReadOnly) {
+      ui.showToast("Arkadaş çiftliğindeyken gübre satın alamazsınız! 🚫");
+      return;
+    }
     const type = btn.dataset.type;
     let cost = 20;
     if (type === "fertilizer_super") cost = 50;
@@ -1779,6 +1905,11 @@ document.querySelectorAll(".buy-fertilizer-btn").forEach(btn => {
 document.querySelectorAll(".buy-material-btn").forEach(btn => {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
+    const farmScene = sceneManager?.scenes?.farm;
+    if (farmScene && farmScene.isReadOnly) {
+      ui.showToast("Arkadaş çiftliğindeyken malzeme satın alamazsınız! 🚫");
+      return;
+    }
     const type = btn.dataset.type;
     const cost = parseInt(btn.dataset.price) || 10;
     

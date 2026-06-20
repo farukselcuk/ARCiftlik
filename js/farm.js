@@ -473,7 +473,7 @@ export class Farm {
   }
 
   save(context = 'own') {
-    if (context === 'friend') return;
+    if (context === 'friend' || this.friendSaveData) return;
     const data = this.plots.map((plot) => ({
       cropId: plot.cropId,
       plantedAt: plot.plantedAt,
@@ -523,7 +523,7 @@ export class Farm {
   }
 
   saveUnlockedPlotsCount(context = 'own') {
-    if (context === 'friend') return;
+    if (context === 'friend' || this.friendSaveData) return;
     this._storage.saveField("unlockedPlots", this.unlockedPlotsCount);
   }
 
@@ -728,7 +728,7 @@ export class Farm {
   }
 
   saveDecorations(context = 'own') {
-    if (context === 'friend') return;
+    if (context === 'friend' || this.friendSaveData) return;
     this._storage.saveField("decorations", this.decorations);
   }
 
@@ -747,7 +747,7 @@ export class Farm {
   }
 
   saveExpansionId(context = 'own') {
-    if (context === 'friend') return;
+    if (context === 'friend' || this.friendSaveData) return;
     this._storage.saveField("expansionId", this.expansionId);
   }
 

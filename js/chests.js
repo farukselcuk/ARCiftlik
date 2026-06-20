@@ -15,10 +15,11 @@ const SPAWN_INTERVAL = 30 * 60 * 1000; // 30 dakika
 
 // ── Ödül tablosu ───────────────────────────────────────────────
 const LOOT_TABLE = [
-  { type: "gold",       weight: 40, min: 50,  max: 500, label: "Altın" },
+  { type: "gold",       weight: 35, min: 50,  max: 500, label: "Altın" },
   { type: "fertilizer", weight: 25, amount: 1, label: "Gübre" },
   { type: "seed",       weight: 25, options: ["wheat", "corn", "strawberry", "sunflower"], label: "Tohum" },
-  { type: "gold",       weight: 10, min: 200, max: 800, label: "Büyük Altın Ödülü" }
+  { type: "gold",       weight: 10, min: 200, max: 800, label: "Büyük Altın Ödülü" },
+  { type: "gem",        weight: 5,  min: 1,   max: 3,   label: "Nadir Elmas" }
 ];
 
 // ── 3D malzemeler ──────────────────────────────────────────────
@@ -156,7 +157,7 @@ export class ChestSystem {
       if (roll <= 0) {
         const result = { type: loot.type, label: loot.label };
 
-        if (loot.type === "gold") {
+        if (loot.type === "gold" || loot.type === "gem") {
           result.amount = Math.floor(Math.random() * (loot.max - loot.min + 1)) + loot.min;
         } else if (loot.type === "seed") {
           result.cropId = loot.options[Math.floor(Math.random() * loot.options.length)];

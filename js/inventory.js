@@ -65,7 +65,8 @@ export class Inventory {
           bread: Number(saved.bread) || 0,
           strawberry_cake: Number(saved.strawberry_cake) || 0,
           blueberry_pie: Number(saved.blueberry_pie) || 0,
-          carrot_cake: Number(saved.carrot_cake) || 0
+          carrot_cake: Number(saved.carrot_cake) || 0,
+          pet_food: Number(saved.pet_food) || 0
         };
       }
     } catch {}
@@ -77,7 +78,8 @@ export class Inventory {
       wood: 0, wood_oak: 0, wood_pine: 0, nails: 0, varnish: 0, hinges: 0,
       furniture_stool: 0, furniture_table: 0, furniture_cabinet: 0,
       wooden_chair: 0, wooden_table: 0, bookshelf: 0, cabinet: 0, wooden_bed: 0, rocking_chair: 0,
-      flour: 0, bread: 0, strawberry_cake: 0, blueberry_pie: 0, carrot_cake: 0
+      flour: 0, bread: 0, strawberry_cake: 0, blueberry_pie: 0, carrot_cake: 0,
+      pet_food: 0
     };
   }
 
@@ -119,7 +121,8 @@ export class Inventory {
       wood: 0, wood_oak: 0, wood_pine: 0, nails: 0, varnish: 0, hinges: 0,
       furniture_stool: 0, furniture_table: 0, furniture_cabinet: 0,
       wooden_chair: 0, wooden_table: 0, bookshelf: 0, cabinet: 0, wooden_bed: 0, rocking_chair: 0,
-      flour: 0, bread: 0, strawberry_cake: 0, blueberry_pie: 0, carrot_cake: 0
+      flour: 0, bread: 0, strawberry_cake: 0, blueberry_pie: 0, carrot_cake: 0,
+      pet_food: 0
     };
     this.save();
   }

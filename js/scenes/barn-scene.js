@@ -379,41 +379,127 @@ export class BarnScene {
   }
 
   interactWithCat() {
-    window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🐱 Miyav! Kedi şans eseri gizemli sandık bulma şansını arttırdı." } }));
-    if (window.audioSystem) window.audioSystem.playCat();
-    this.jumpAnimation(this.catGroup);
-    window.dispatchEvent(new CustomEvent("xp-gain", { detail: { amount: 3, source: "cat" } }));
-  }
-
-  interactWithShiba() {
-    // Shiba etkileşimi (Dostluk seviyesini arttır)
     const petData = this.globalStorage.loadField("pet") || {};
-    let level = petData.friendshipLevel || 1;
-    let xp = petData.friendshipXP || 0;
     
-    xp += 15;
+    // Kedi satın alınmamışsa besleme engelle
+    if (!petData.catPurchased) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🐱 Kedi Yoldaş'ı beslemek için önce marketten satın almalısınız!" } }));
+      return;
+    }
+
+    if (this.isReadOnly) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğinde evcil hayvanlar beslenemez! 🚫" } }));
+      return;
+    }
+
+    const today = new Date().toDateString();
+    
+    // Günlük reset
+    if (petData.catLastFeedDate !== today) {
+      petData.catTodayFeeds = 0;
+      petData.catLastFeedDate = today;
+    }
+
+    // Günlük besleme limiti kontrolü (Maks 3)
+    if (petData.catTodayFeeds >= 3) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🍖 Kedi bugün yeterince beslendi! Yarın tekrar gelin 🐾` } }));
+      return;
+    }
+
+    // Envanterde mama var mı kontrolü
+    if (!window.inventory || !window.inventory.has("pet_food", 1)) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🍖 Yeterli evcil hayvan maması yok! Seyyar Satıcı'dan mama alabilirsiniz." } }));
+      return;
+    }
+
+    // Mama düş, dostluk artır
+    window.inventory.deduct("pet_food", 1);
+    petData.catTodayFeeds = (petData.catTodayFeeds || 0) + 1;
+    petData.catFriendshipXP = (petData.catFriendshipXP || 0) + 20;
+
+    let level = petData.catFriendshipLevel || 1;
     const nextLevelXP = level * 100;
     let leveledUp = false;
-    if (xp >= nextLevelXP) {
-      xp -= nextLevelXP;
+    if (petData.catFriendshipXP >= nextLevelXP) {
+      petData.catFriendshipXP -= nextLevelXP;
       level += 1;
+      petData.catFriendshipLevel = level;
       leveledUp = true;
     }
 
-    this.globalStorage.saveField("pet", {
-      purchased: true,
-      friendshipLevel: level,
-      friendshipXP: xp
-    });
+    this.globalStorage.saveField("pet", petData);
+
+    if (window.audioSystem) window.audioSystem.playCat();
+    this.jumpAnimation(this.catGroup);
+
+    if (leveledUp) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🎉 Kedi Dostluk Seviyesi Atladı! (Seviye ${level}) 🐾` } }));
+      if (window.audioSystem) window.audioSystem.playPlace();
+    } else {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🍖 Kedi'yi beslediniz! Dostluk +20 XP (${petData.catFriendshipXP}/${nextLevelXP}) [Bugün: ${petData.catTodayFeeds}/3]` } }));
+      if (window.audioSystem) window.audioSystem.playPlant();
+    }
+  }
+
+  interactWithShiba() {
+    const petData = this.globalStorage.loadField("pet") || {};
+
+    if (!petData.purchased) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🐕 Shiba'yı beslemek için önce marketten satın almalısınız!" } }));
+      return;
+    }
+
+    if (this.isReadOnly) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğinde evcil hayvanlar beslenemez! 🚫" } }));
+      return;
+    }
+
+    const today = new Date().toDateString();
+    
+    // Günlük reset
+    if (petData.lastFeedDate !== today) {
+      petData.todayFeeds = 0;
+      petData.lastFeedDate = today;
+    }
+
+    // Günlük besleme limiti kontrolü (Maks 3)
+    if (petData.todayFeeds >= 3) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🍖 Shiba bugün yeterince beslendi! Yarın tekrar gelin 🐾` } }));
+      return;
+    }
+
+    // Envanterde mama var mı kontrolü
+    if (!window.inventory || !window.inventory.has("pet_food", 1)) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🍖 Yeterli evcil hayvan maması yok! Seyyar Satıcı'dan mama alabilirsiniz." } }));
+      return;
+    }
+
+    // Mama düş, dostluk artır
+    window.inventory.deduct("pet_food", 1);
+    petData.todayFeeds = (petData.todayFeeds || 0) + 1;
+    petData.friendshipXP = (petData.friendshipXP || 0) + 20;
+
+    let level = petData.friendshipLevel || 1;
+    const nextLevelXP = level * 100;
+    let leveledUp = false;
+    if (petData.friendshipXP >= nextLevelXP) {
+      petData.friendshipXP -= nextLevelXP;
+      level += 1;
+      petData.friendshipLevel = level;
+      leveledUp = true;
+    }
+
+    this.globalStorage.saveField("pet", petData);
 
     if (window.audioSystem) window.audioSystem.playDog();
     this.jumpAnimation(this.shibaGroup);
 
     if (leveledUp) {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🎉 Shiba Dostluk Seviyesi Atladı! (Seviye ${level})` } }));
-      window.dispatchEvent(new CustomEvent("pet-level-up", { detail: { level } }));
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🎉 Shiba Dostluk Seviyesi Atladı! (Seviye ${level}) 🐾` } }));
+      if (window.audioSystem) window.audioSystem.playPlace();
     } else {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🐕 Shiba: Hav! Dostluk +15 XP (${xp}/${nextLevelXP})` } }));
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🍖 Shiba'yı beslediniz! Dostluk +20 XP (${petData.friendshipXP}/${nextLevelXP}) [Bugün: ${petData.todayFeeds}/3]` } }));
+      if (window.audioSystem) window.audioSystem.playPlant();
     }
   }
 

@@ -52,6 +52,12 @@ export class SceneManager {
 
         if (window.audioSystem) window.audioSystem.playPlace();
 
+        // Ziyaret modundaysa engelle
+        if (this.scenes.farm.isReadOnly && sceneKey !== "farm") {
+          window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğindeyken diğer atölyelere gidemezsiniz! 🚫" } }));
+          return;
+        }
+
         // Fırın kilidi kontrolü (Seviye 5)
         if (sceneKey === "bakery") {
           const charLevel = Number(this.globalStorage.loadField("level")) || 1;

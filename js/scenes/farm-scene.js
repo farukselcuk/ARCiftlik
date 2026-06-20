@@ -32,7 +32,9 @@ export class FarmScene {
     // Alt sistemler
     this.farm = new Farm(farmStorage);
     this.character = new Character(globalStorage);
-    this.pet = new Pet(globalStorage); // Pet satın alım bilgisi globalde
+    this.shibaPet = new Pet(globalStorage, "shiba");
+    this.catPet = new Pet(globalStorage, "cat");
+    this.pet = this.shibaPet;
     this.chestSystem = new ChestSystem(globalStorage);
     this.floatingTextManager = new FloatingTextManager(this.camera);
 
@@ -96,7 +98,8 @@ export class FarmScene {
 
     // Grupları sahneye ekle
     this.farm.group.add(this.character.group);
-    this.farm.group.add(this.pet.group);
+    this.farm.group.add(this.shibaPet.group);
+    this.farm.group.add(this.catPet.group);
     this.scene.add(this.farm.group);
 
     // Sandık sistemi ayarı
@@ -171,8 +174,12 @@ export class FarmScene {
 
     // Alt sistemleri yenile
     this.farm.load();
-    this.pet.purchased = this.pet.load();
-    this.pet.group.visible = this.pet.purchased;
+    this.shibaPet.purchased = this.shibaPet.load();
+    this.shibaPet.group.visible = this.shibaPet.purchased;
+    this.shibaPet.setSkin(this.shibaPet.activeSkin);
+
+    this.catPet.purchased = this.catPet.load();
+    this.catPet.group.visible = this.catPet.purchased;
 
     // Arka plan rengini güncelle
     document.body.className = "is-running no-camera has-farm day-time";
@@ -404,17 +411,32 @@ export class FarmScene {
     }
 
     // 1. Shiba köpeğine tıklandı mı?
-    if (this.pet.purchased) {
-      const petHits = this.raycaster.intersectObjects(this.pet.group.children, true);
+    if (this.shibaPet.purchased) {
+      const petHits = this.raycaster.intersectObjects(this.shibaPet.group.children, true);
       if (petHits.length > 0) {
-        if (this.pet.hasCoinBubble) {
-          if (this.pet.collectCoin()) {
+        if (this.shibaPet.hasCoinBubble) {
+          if (this.shibaPet.collectCoin()) {
             window.dispatchEvent(new CustomEvent("coins-reward", { detail: { amount: 15 } }));
-            window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Shiba found a coin! +15 🪙" } }));
+            window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Shiba bir altın buldu! +15 🪙" } }));
           }
         } else {
-          // Pet etkileşimi (Dostluk XP)
-          this.interactWithPet();
+          this.interactWithPet(this.shibaPet);
+        }
+        return;
+      }
+    }
+
+    // 1.5 Kedi yoldaşa tıklandı mı?
+    if (this.catPet.purchased) {
+      const catHits = this.raycaster.intersectObjects(this.catPet.group.children, true);
+      if (catHits.length > 0) {
+        if (this.catPet.hasCoinBubble) {
+          if (this.catPet.collectCoin()) {
+            window.dispatchEvent(new CustomEvent("coins-reward", { detail: { amount: 15 } }));
+            window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Kedi bir altın buldu! +15 🪙" } }));
+          }
+        } else {
+          this.interactWithPet(this.catPet);
         }
         return;
       }
@@ -452,64 +474,57 @@ export class FarmScene {
     }
   }
 
-  interactWithPet() {
+  interactWithPet(pet) {
     // ⚠️ Ziyaret modunda pet etkileşimi engelle
     if (this.isReadOnly) {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğinde pet ile etkileşim yapılamaz!" } }));
-      return;
-    }
-
-    const now = Date.now();
-    const PET_INTERACTION_COOLDOWN = 5000; // 5 saniye
-    const PET_DAILY_XP_CAP = 50; // Günde max kazanılabilecek XP
-    const XP_PER_INTERACTION = 5; // Etkileşim başına XP
-
-    // 1. Cooldown kontrolü — art arda tıklamayı önle
-    if (this._lastPetInteraction && (now - this._lastPetInteraction) < PET_INTERACTION_COOLDOWN) {
-      const remainSec = Math.ceil((PET_INTERACTION_COOLDOWN - (now - this._lastPetInteraction)) / 1000);
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🐕 Biraz bekle... (${remainSec}s)` } }));
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "Arkadaş çiftliğinde evcil hayvanlar beslenemez! 🚫" } }));
       return;
     }
 
     const today = new Date().toDateString();
     
-    // 2. Günlük reset
-    if (this.pet._lastInteractionDate !== today) {
-      this.pet._todayInteractions = 0;
-      this.pet._xpEarnedToday = 0;
-      this.pet._lastInteractionDate = today;
+    // Günlük reset
+    if (pet._lastFeedDate !== today) {
+      pet._todayFeeds = 0;
+      pet._lastFeedDate = today;
     }
 
-    // 3. Günlük XP limiti kontrolü
-    if (this.pet._xpEarnedToday >= PET_DAILY_XP_CAP) {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🐕 Shiba bugün yeterince XP kazandı! Yarın tekrar gel 🐾` } }));
+    const petName = pet.petType === "shiba" ? "Shiba" : "Kedi";
+
+    // Günlük besleme limiti kontrolü (Maks 3)
+    if (pet._todayFeeds >= 3) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🍖 ${petName} bugün yeterince beslendi! Yarın tekrar gelin 🐾` } }));
       return;
     }
 
-    // 4. XP ver — limite kadar
-    const xpGain = Math.min(XP_PER_INTERACTION, PET_DAILY_XP_CAP - this.pet._xpEarnedToday);
-    this.pet._todayInteractions += 1;
-    this.pet._xpEarnedToday += xpGain;
-    this.pet.friendshipXP += xpGain;
-    this._lastPetInteraction = now;
+    // Envanterde mama var mı kontrolü
+    if (!window.inventory || !window.inventory.has("pet_food", 1)) {
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: "🍖 Yeterli evcil hayvan maması yok! Seyyar Satıcı'dan mama alabilirsiniz." } }));
+      return;
+    }
+
+    // Mama düş, dostluk artır
+    window.inventory.deduct("pet_food", 1);
+    pet._todayFeeds += 1;
+    pet.friendshipXP += 20;
     
-    // 5. Seviye atlama kontrolü
-    const nextLevelXP = this.pet.friendshipLevel * 100;
+    // Seviye atlama kontrolü (her 100 XP'de 1 seviye)
+    const nextLevelXP = pet.friendshipLevel * 100;
     let leveledUp = false;
-    if (this.pet.friendshipXP >= nextLevelXP) {
-      this.pet.friendshipXP -= nextLevelXP;
-      this.pet.friendshipLevel += 1;
+    if (pet.friendshipXP >= nextLevelXP) {
+      pet.friendshipXP -= nextLevelXP;
+      pet.friendshipLevel += 1;
       leveledUp = true;
     }
-    
-    // 6. Kalıcı kaydet — sayfa yenilenince de korunsun
-    this.pet.save();
+
+    pet.save();
 
     if (leveledUp) {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🎉 Shiba Dostluk Seviyesi Atladı! (Seviye ${this.pet.friendshipLevel})` } }));
-      window.dispatchEvent(new CustomEvent("pet-level-up", { detail: { level: this.pet.friendshipLevel } }));
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🎉 ${petName} Dostluk Seviyesi Atladı! (Seviye ${pet.friendshipLevel}) 🐾` } }));
+      if (window.audioSystem) window.audioSystem.playPlace();
     } else {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🐕 Shiba'yı sevdin! Dostluk +${xpGain} XP (${this.pet.friendshipXP}/${nextLevelXP}) [Bugün: ${this.pet._xpEarnedToday}/${PET_DAILY_XP_CAP}]` } }));
+      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🍖 ${petName}'yi beslediniz! Dostluk +20 XP (${pet.friendshipXP}/${nextLevelXP}) [Bugün: ${pet._todayFeeds}/3]` } }));
+      if (window.audioSystem) window.audioSystem.playPlant();
     }
   }
 
@@ -793,7 +808,8 @@ export class FarmScene {
     this.farm.update(realNow, this.camera);
     if (!this.isReadOnly) {
       this.character.update(dt);
-      this.pet.update(dt);
+      this.shibaPet.update(dt);
+      this.catPet.update(dt);
       this.chestSystem.update(realNow);
       if (this.floatingTextManager) this.floatingTextManager.update();
     }
@@ -850,7 +866,8 @@ export class FarmScene {
     this.isReadOnly = true;
     this.farm.friendSaveData = friendSaveData;
     this.character.group.visible = false;
-    this.pet.group.visible = false;
+    this.shibaPet.group.visible = false;
+    this.catPet.group.visible = false;
     
     // ⚠️ KRİTİK: Önce mevcut input listener'ları TEMİZLE — çökme önleme
     this.unbindInput();
@@ -887,9 +904,6 @@ export class FarmScene {
 
   restoreMyFarm() {
     this.isReadOnly = false;
-    this.farm.friendSaveData = null;
-    this.character.group.visible = true;
-    this.pet.group.visible = true;
     
     // ⚠️ KRİTİK: Önce ziyaret input'unu TEMİZLE
     this.unbindInput();
@@ -899,7 +913,14 @@ export class FarmScene {
       this.chestSystem.chests.forEach(c => { if (c.mesh) c.mesh.visible = true; });
     }
 
+    // ⚠️ KRİTİK: Önce grid'i kendi verilerimizle yeniden inşa et, sonra friendSaveData'yı temizle!
     this.farm.rebuildGrid('own');
+    this.farm.friendSaveData = null;
+
+    this.character.group.visible = true;
+    this.shibaPet.group.visible = this.shibaPet.purchased;
+    this.catPet.group.visible = this.catPet.purchased;
+    
     this.updateStaticMeshesPositions();
     this.checkMailbox();
     this.updateMaxZoomDistance();

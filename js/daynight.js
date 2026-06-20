@@ -71,10 +71,12 @@ export class DayNightCycle {
 
   /**
    * Mevcut saati (0-24 arası float) döndürür.
-   * @param {Date} nowObj
+   * @param {number} nowMs
    */
-  _getTimeOfDay(nowObj) {
-    return nowObj.getHours() + nowObj.getMinutes() / 60 + nowObj.getSeconds() / 3600;
+  _getTimeOfDay(nowMs) {
+    const cycleMs = 25 * 60 * 1000;
+    const elapsedMs = nowMs % cycleMs;
+    return (elapsedMs / cycleMs) * 24;
   }
 
   /**
@@ -85,29 +87,26 @@ export class DayNightCycle {
     if (nowMs - this._lastUpdateTime < 1000) return; // Saniyede en fazla 1 kez
     this._lastUpdateTime = nowMs;
 
-    const nowObj = new Date(nowMs);
-    const t = this._getTimeOfDay(nowObj);
+    const cycleMs = 25 * 60 * 1000;
+    const elapsedMs = nowMs % cycleMs;
+    const elapsedMinutes = elapsedMs / (60 * 1000); // 0-25 arası float
 
-    if (t >= 6 && t < 7) {
-      // Gün doğumu: 06:00 - 07:00
+    if (elapsedMinutes >= 0 && elapsedMinutes < 1) {
+      // Gün doğumu: 0 - 1. dakika (1 dakika)
       this.currentPhase = "sunrise";
-      this.phaseProgress = (t - 6) / 1;
-    } else if (t >= 7 && t < 18) {
-      // Gündüz: 07:00 - 18:00
+      this.phaseProgress = elapsedMinutes / 1;
+    } else if (elapsedMinutes >= 1 && elapsedMinutes < 14) {
+      // Gündüz: 1 - 14. dakika (13 dakika)
       this.currentPhase = "day";
-      this.phaseProgress = (t - 7) / 11;
-    } else if (t >= 18 && t < 20) {
-      // Gün batımı: 18:00 - 20:00
+      this.phaseProgress = (elapsedMinutes - 1) / 13;
+    } else if (elapsedMinutes >= 14 && elapsedMinutes < 15) {
+      // Gün batımı: 14 - 15. dakika (1 dakika)
       this.currentPhase = "sunset";
-      this.phaseProgress = (t - 18) / 2;
+      this.phaseProgress = (elapsedMinutes - 14) / 1;
     } else {
-      // Gece: 20:00 - 06:00
+      // Gece: 15 - 25. dakika (10 dakika)
       this.currentPhase = "night";
-      if (t >= 20) {
-        this.phaseProgress = (t - 20) / 10;
-      } else {
-        this.phaseProgress = (t + 4) / 10; // 00:00-06:00
-      }
+      this.phaseProgress = (elapsedMinutes - 15) / 10;
     }
 
     // Faz değişimi kontrolü
@@ -127,7 +126,8 @@ export class DayNightCycle {
    * @param {number} now — performance.now() veya Date.now()
    */
   update(ambientLight, sunLight, firefliesGroup, now) {
-    this._update(now || Date.now());
+    const nowTimeMs = Date.now();
+    this._update(nowTimeMs);
 
     const phase = this.currentPhase;
     const progress = this.phaseProgress;
@@ -174,7 +174,7 @@ export class DayNightCycle {
       sunLight.color.lerpColors(fromPreset.sunColor, toPreset.sunColor, t);
 
       // Güneş pozisyonunu gün içinde hareket ettir
-      const dayProgress = this._getTimeOfDay(new Date(now || Date.now())) / 24;
+      const dayProgress = (nowTimeMs % (25 * 60 * 1000)) / (25 * 60 * 1000);
       const sunAngle = dayProgress * Math.PI * 2 - Math.PI / 2;
       sunLight.position.set(
         Math.cos(sunAngle) * 2,
@@ -215,7 +215,7 @@ export class DayNightCycle {
   }
 
   /**
-   * Gündüz mü?
+   * Gündüz mi?
    * @returns {boolean}
    */
   isDay() {
@@ -224,13 +224,19 @@ export class DayNightCycle {
 
   /**
    * Saat bilgisini HH:MM formatında döndürür.
+   * @param {number} [nowMs]
    * @returns {string}
    */
-  getFormattedTime() {
-    const now = new Date();
-    const h = String(now.getHours()).padStart(2, "0");
-    const m = String(now.getMinutes()).padStart(2, "0");
-    return `${h}:${m}`;
+  getFormattedTime(nowMs) {
+    const timeMs = nowMs || Date.now();
+    const cycleMs = 25 * 60 * 1000;
+    const elapsedMs = timeMs % cycleMs;
+    const t = (elapsedMs / cycleMs) * 24;
+    const hours = Math.floor(t);
+    const minutes = Math.floor((t - hours) * 60);
+    const hStr = String(hours).padStart(2, "0");
+    const mStr = String(minutes).padStart(2, "0");
+    return `${hStr}:${mStr}`;
   }
 
   /**

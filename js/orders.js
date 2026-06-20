@@ -93,7 +93,12 @@ export class Orders {
     const bonus = isBoat ? (1.5 + Math.random() * 0.2) : (1.2 + Math.random() * 0.15);
     const reward = Math.round(baseValue * bonus);
 
-    return { id, villager, reqs, reward, isBoat };
+    let gemReward = 0;
+    if (isBoat && Math.random() < 0.40) {
+      gemReward = Math.random() > 0.7 ? 2 : 1;
+    }
+
+    return { id, villager, reqs, reward, gemReward, isBoat };
   }
 
   validateExistingOrders(orders, playerLevel) {

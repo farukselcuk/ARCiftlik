@@ -51,7 +51,7 @@ const SEASONS = {
 };
 
 const SEASON_ORDER = ["spring", "summer", "autumn", "winter"];
-const WEEKLY_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 gün ms
+const WEEKLY_DURATION = 175 * 60 * 1000; // 175 dakika ms
 
 export class SeasonSystem {
   /**
@@ -130,22 +130,22 @@ export class SeasonSystem {
       this._save();
       return;
     }
-
-    const elapsed = now - this.lastChangeAt;
-    if (elapsed >= WEEKLY_DURATION) {
-      // Kaç mevsim atlanacağını hesapla
-      const cyclesSkipped = Math.floor(elapsed / WEEKLY_DURATION);
-      const currentIndex = SEASON_ORDER.indexOf(this.current);
-      const newIndex = (currentIndex + cyclesSkipped) % SEASON_ORDER.length;
-      const old = this.current;
-      this.current = SEASON_ORDER[newIndex];
-      this.lastChangeAt = now;
-      this._save();
-      if (old !== this.current && this.onSeasonChange) {
-        this.onSeasonChange(old, this.current);
-      }
-    }
-  }
+ 
+     const elapsed = now - this.lastChangeAt;
+     if (elapsed >= WEEKLY_DURATION) {
+       // Kaç mevsim atlanacağını hesapla
+       const cyclesSkipped = Math.floor(elapsed / WEEKLY_DURATION);
+       const currentIndex = SEASON_ORDER.indexOf(this.current);
+       const newIndex = (currentIndex + cyclesSkipped) % SEASON_ORDER.length;
+       const old = this.current;
+       this.current = SEASON_ORDER[newIndex];
+       this.lastChangeAt = now - (elapsed % WEEKLY_DURATION);
+       this._save();
+       if (old !== this.current && this.onSeasonChange) {
+         this.onSeasonChange(old, this.current);
+       }
+     }
+   }
 
   /**
    * Her frame'de çağrılır.

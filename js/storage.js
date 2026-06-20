@@ -25,7 +25,7 @@ const DEFAULTS_BY_NAMESPACE = {
     },
     shopItems: [],
     pendingGold: 0,
-    pet: { purchased: false },
+    pet: { purchased: false, catPurchased: false, activeSkin: "default", goldSkinPurchased: false },
     dailyLogin: { streak: 0, lastLoginDate: null, claimed: false },
     weather: { current: "sunny", nextChangeAt: 0 },
     season: { current: "spring", mode: "weekly", lastChangeAt: 0 }

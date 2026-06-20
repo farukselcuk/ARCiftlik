@@ -9,6 +9,15 @@ export class MerchantSystem {
       expiresAt: 0,
       items: []
     };
+
+    // Eski save verilerinde mama bulunmuyorsa, mama eklemek için ürünleri yeniden oluştur
+    if (this.state.active && this.state.items && this.state.items.length > 0) {
+      const hasFood = this.state.items.some(item => item.id === "pet_food");
+      if (!hasFood) {
+        this.state.items = this.generateItems();
+        this.save();
+      }
+    }
   }
 
   save() {
@@ -56,9 +65,23 @@ export class MerchantSystem {
       { id: "pumpkin", name: "Nadir Bal Kabağı Tohumu", price: 80, type: "seed", desc: "Mevsim dışı ekilebilir özel tohum", icon: "🎃" }
     ];
 
-    // Satıcı geldiğinde rastgele 2 ürün satar
+    const foodItems = [
+      { id: "pet_food", name: "Evcil Hayvan Maması (x3)", price: 30, type: "bundle", desc: "Evcil hayvanlarınızı beslemek için mama paketi.", icon: "🍖" },
+      { id: "pet_food", name: "Evcil Hayvan Maması", price: 12, type: "material", desc: "Evcil hayvanlarınızı beslemek için lezzetli mama.", icon: "🍖" }
+    ];
+
+    // Satıcı geldiğinde rastgele 3 ürün satar (en az 1 adet mama garanti)
+    const items = [];
+    // 1 tane rastgele mama
+    items.push(foodItems[Math.floor(Math.random() * foodItems.length)]);
+
+    // Diğer ürünlerden rastgele 2 adet
     const shuffled = possibleItems.sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 2).map(item => ({ ...item, sold: false }));
+    items.push(shuffled[0]);
+    items.push(shuffled[1]);
+
+    // Karıştır
+    return items.sort(() => 0.5 - Math.random()).map(item => ({ ...item, sold: false }));
   }
 
   buyItem(index, coins) {
