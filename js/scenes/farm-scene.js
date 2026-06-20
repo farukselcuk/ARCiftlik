@@ -646,12 +646,29 @@ export class FarmScene {
       return false;
     }
 
-    // Mevsim ekim kısıtlaması
-    const seasonSystem = window.seasonSystem;
-    if (seasonSystem && !seasonSystem.canPlant(cropId)) {
-      const season = seasonSystem.getCurrentSeason();
-      window.dispatchEvent(new CustomEvent("toast", { detail: { text: `❌ ${season.icon} ${season.name} mevsiminde bu ürün ekilemez!` } }));
-      return false;
+    const hasSeedInInventory = window.inventory && window.inventory.getCount(cropId) > 0;
+
+    // Mevsim ekim kısıtlaması (Envanterde tohum varsa bunu pas geçebiliriz, seyyar satıcı açıklamasına uygun)
+    if (!hasSeedInInventory) {
+      const seasonSystem = window.seasonSystem;
+      if (seasonSystem && !seasonSystem.canPlant(cropId)) {
+        const season = seasonSystem.getCurrentSeason();
+        window.dispatchEvent(new CustomEvent("toast", { detail: { text: `❌ ${season.icon} ${season.name} mevsiminde bu ürün ekilemez!` } }));
+        return false;
+      }
+    }
+
+    // Envanterde tohum varsa doğrudan envanterden ek
+    if (hasSeedInInventory) {
+      if (window.inventory.deduct(cropId, 1)) {
+        const planted = this.farm.plant(plotIndex, cropId);
+        if (planted) {
+          window.dispatchEvent(new CustomEvent("toast", { detail: { text: `🌱 ${planted.name} envanterden ekildi! (Kalan: ${window.inventory.getCount(cropId)})` } }));
+          window.dispatchEvent(new CustomEvent("xp-gain", { detail: { amount: 5, source: "plant" } }));
+          if (window.updateWarehouseUI) window.updateWarehouseUI();
+        }
+        return true;
+      }
     }
 
     // Coin kontrolü
@@ -672,7 +689,7 @@ export class FarmScene {
           if (success) {
             const planted = this.farm.plant(plotIndex, cropId);
             if (planted) {
-              window.dispatchEvent(new CustomEvent("toast", { detail: { text: `${planted.name} planted 🌱` } }));
+              window.dispatchEvent(new CustomEvent("toast", { detail: { text: `${planted.name} ekildi 🌱` } }));
               window.dispatchEvent(new CustomEvent("xp-gain", { detail: { amount: 5, source: "plant" } }));
             }
           }

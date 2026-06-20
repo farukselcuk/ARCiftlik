@@ -329,7 +329,7 @@ export class Character {
   }
 
   _walk(dt) {
-    const speed = 0.45; /* world-units / second */
+    const speed = 1.35; /* world-units / second (formerly 0.45) */
     const dir = this.walkTarget.clone().sub(this.group.position);
     dir.y = 0;
     const dist = dir.length();
@@ -356,18 +356,18 @@ export class Character {
 
     /* Walk cycle */
     const t = this._time;
-    const swing = Math.sin(t * 10) * 0.45;
+    const swing = Math.sin(t * 25) * 0.45;
     if (this.leftLeg)  this.leftLeg.rotation.x  =  swing;
     if (this.rightLeg) this.rightLeg.rotation.x = -swing;
     if (this.leftArm)  this.leftArm.rotation.x  = -swing * 0.55;
     if (this.rightArm) this.rightArm.rotation.x =  swing * 0.55;
-    this.pivot.position.y = Math.abs(Math.sin(t * 10)) * 0.025;
+    this.pivot.position.y = Math.abs(Math.sin(t * 25)) * 0.025;
     this.pivot.rotation.x = 0;
   }
 
   _harvest(dt) {
     this._harvestTime += dt;
-    const duration = 0.85;
+    const duration = 0.3; /* harvest duration (formerly 0.85) */
     const p = Math.min(this._harvestTime / duration, 1);
 
     if (p >= 1) {
